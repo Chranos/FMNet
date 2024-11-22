@@ -1,0 +1,26 @@
+nohup: ignoring input
+load data...
+Start train...
+/opt/conda/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:143: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn("Detected call of `lr_scheduler.step()` before `optimizer.step()`. "
+2024-11-21 06:34:23.395657 Epoch [001/180], Step [0001/0400], Total_loss: 3.1458 Loss1: 1.4808 Loss2: 1.6649
+2024-11-21 06:35:04.047919 Epoch [001/180], Step [0020/0400], Total_loss: 2.3372 Loss1: 1.2019 Loss2: 1.1324
+2024-11-21 06:35:46.488102 Epoch [001/180], Step [0040/0400], Total_loss: 2.5542 Loss1: 1.2343 Loss2: 1.3085
+2024-11-21 06:36:29.181624 Epoch [001/180], Step [0060/0400], Total_loss: 2.3814 Loss1: 1.1856 Loss2: 1.1688
+2024-11-21 06:37:12.113672 Epoch [001/180], Step [0080/0400], Total_loss: 2.2877 Loss1: 1.1406 Loss2: 1.1170
+2024-11-21 06:37:54.798063 Epoch [001/180], Step [0100/0400], Total_loss: 2.2103 Loss1: 1.1168 Loss2: 1.0573
+2024-11-21 06:38:37.623421 Epoch [001/180], Step [0120/0400], Total_loss: 2.6475 Loss1: 1.2182 Loss2: 1.3965
+2024-11-21 06:39:20.260428 Epoch [001/180], Step [0140/0400], Total_loss: 2.3460 Loss1: 1.1414 Loss2: 1.1377
+2024-11-21 06:40:02.907154 Epoch [001/180], Step [0160/0400], Total_loss: 2.5701 Loss1: 1.1879 Loss2: 1.3440
+2024-11-21 06:40:45.619815 Epoch [001/180], Step [0180/0400], Total_loss: 2.7159 Loss1: 1.2244 Loss2: 1.4189
+2024-11-21 06:41:28.503905 Epoch [001/180], Step [0200/0400], Total_loss: 2.4595 Loss1: 1.1417 Loss2: 1.2478
+2024-11-21 06:42:10.967479 Epoch [001/180], Step [0220/0400], Total_loss: 2.4756 Loss1: 1.1484 Loss2: 1.2456
+2024-11-21 06:42:53.764522 Epoch [001/180], Step [0240/0400], Total_loss: 2.3923 Loss1: 1.1309 Loss2: 1.1751
+2024-11-21 06:43:36.297170 Epoch [001/180], Step [0260/0400], Total_loss: 2.5900 Loss1: 1.1583 Loss2: 1.3425
+2024-11-21 06:44:18.931908 Epoch [001/180], Step [0280/0400], Total_loss: 2.5892 Loss1: 1.1550 Loss2: 1.3371
+2024-11-21 06:45:01.389869 Epoch [001/180], Step [0300/0400], Total_loss: 2.4150 Loss1: 1.0977 Loss2: 1.2325
+2024-11-21 06:45:44.014427 Epoch [001/180], Step [0320/0400], Total_loss: 2.4108 Loss1: 1.1185 Loss2: 1.2391
+2024-11-21 06:46:26.647582 Epoch [001/180], Step [0340/0400], Total_loss: 2.3692 Loss1: 1.0994 Loss2: 1.1256
+2024-11-21 06:47:09.571050 Epoch [001/180], Step [0360/0400], Total_loss: 2.4091 Loss1: 1.1081 Loss2: 1.2004
+2024-11-21 06:47:52.323083 Epoch [001/180], Step [0380/0400], Total_loss: 2.4460 Loss1: 1.1168 Loss2: 1.2184
+2024-11-21 06:48:34.627081 Epoch [001/180], Step [0400/0400], Total_loss: 2.7021 Loss1: 1.1898 Loss2: 1.4194
