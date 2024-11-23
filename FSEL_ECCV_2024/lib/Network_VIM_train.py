@@ -3,7 +3,7 @@ import timm
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, ETB
+from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, ETB , PFAFM
 from transformers import AutoModel
 from PIL import Image
 from timm.data.transforms_factory import create_transform
@@ -52,7 +52,7 @@ class Network(nn.Module):
         self.ETB_3 = ETB(256+channels, channels)
         self.ETB_2 = ETB(128+channels, channels)
 
-        self.JDPM = JDPM(1024, channels)
+        self.PFAFM = PFAFM(1024, channels)
 
         self.DRP_1 = DRP_1(channels, channels)
         self.DRP_2 = DRP_2(channels, channels)
@@ -87,7 +87,7 @@ class Network(nn.Module):
         x1, x2, x3, x4 = en_feats
 
 
-        p1 = self.JDPM(x4)
+        p1 = self.PFAFM(x4)
         x5_4 = p1
         x5_4_1 = x5_4.expand(-1, 128, -1, -1)
 

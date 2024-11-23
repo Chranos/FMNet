@@ -156,13 +156,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--epoch', type=int, default=180, help='epoch number')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
-    parser.add_argument('--batchsize', type=int, default=15, help='training batch size')
+    parser.add_argument('--batchsize', type=int, default=8, help='training batch size')
     parser.add_argument('--trainsize', type=int, default=416, help='training dataset size')
     parser.add_argument('--clip', type=float, default=0.5, help='gradient clipping margin')
     parser.add_argument('--decay_rate', type=float, default=0.1, help='decay rate of learning rate')
     parser.add_argument('--decay_epoch', type=int, default=60, help='every n epochs decay learning rate')
     parser.add_argument('--load', type=str, default=None, help='train from checkpoints')
-    parser.add_argument('--gpu_id', type=str, default='0,1,2', help='train use gpu')
+    parser.add_argument('--gpu_id', type=str, default='0,1', help='train use gpu')
     parser.add_argument('--train_root', type=str, default='',
                         help='the training rgb images root')
     parser.add_argument('--val_root', type=str, default='',
@@ -176,7 +176,7 @@ if __name__ == '__main__':
     cudnn.benchmark = True
 
     # build the model
-    device_ids = [1,2] # if you want to use more gpus than 2, you shoule change it just like when use opt.gpu_id='1,2,6,8' , device_ids = [0,1,2,3]
+    device_ids = [0,1] # if you want to use more gpus than 2, you shoule change it just like when use opt.gpu_id='1,2,6,8' , device_ids = [0,1,2,3]
     model = torch.nn.DataParallel(Network(channels=128), device_ids=device_ids)
     model = model.cuda(device=device_ids[0])
 
@@ -196,7 +196,7 @@ if __name__ == '__main__':
                               edge_root=opt.train_root + 'Edge/',
                               batchsize=opt.batchsize,
                               trainsize=opt.trainsize,
-                              num_workers=8)
+                              num_workers=16)
     val_loader = test_dataset(image_root=opt.val_root + 'Imgs/',
                               gt_root=opt.val_root + 'GT/',
                               testsize=opt.trainsize)
