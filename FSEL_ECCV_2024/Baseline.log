@@ -1,26 +1,335 @@
 nohup: ignoring input
+/opt/conda/lib/python3.10/site-packages/timm/models/registry.py:4: FutureWarning: Importing from timm.models.registry is deprecated, please import via timm.models
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.models", FutureWarning)
+/opt/conda/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
 load data...
 Start train...
 /opt/conda/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:143: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
   warnings.warn("Detected call of `lr_scheduler.step()` before `optimizer.step()`. "
-2024-11-21 06:34:23.395657 Epoch [001/180], Step [0001/0400], Total_loss: 3.1458 Loss1: 1.4808 Loss2: 1.6649
-2024-11-21 06:35:04.047919 Epoch [001/180], Step [0020/0400], Total_loss: 2.3372 Loss1: 1.2019 Loss2: 1.1324
-2024-11-21 06:35:46.488102 Epoch [001/180], Step [0040/0400], Total_loss: 2.5542 Loss1: 1.2343 Loss2: 1.3085
-2024-11-21 06:36:29.181624 Epoch [001/180], Step [0060/0400], Total_loss: 2.3814 Loss1: 1.1856 Loss2: 1.1688
-2024-11-21 06:37:12.113672 Epoch [001/180], Step [0080/0400], Total_loss: 2.2877 Loss1: 1.1406 Loss2: 1.1170
-2024-11-21 06:37:54.798063 Epoch [001/180], Step [0100/0400], Total_loss: 2.2103 Loss1: 1.1168 Loss2: 1.0573
-2024-11-21 06:38:37.623421 Epoch [001/180], Step [0120/0400], Total_loss: 2.6475 Loss1: 1.2182 Loss2: 1.3965
-2024-11-21 06:39:20.260428 Epoch [001/180], Step [0140/0400], Total_loss: 2.3460 Loss1: 1.1414 Loss2: 1.1377
-2024-11-21 06:40:02.907154 Epoch [001/180], Step [0160/0400], Total_loss: 2.5701 Loss1: 1.1879 Loss2: 1.3440
-2024-11-21 06:40:45.619815 Epoch [001/180], Step [0180/0400], Total_loss: 2.7159 Loss1: 1.2244 Loss2: 1.4189
-2024-11-21 06:41:28.503905 Epoch [001/180], Step [0200/0400], Total_loss: 2.4595 Loss1: 1.1417 Loss2: 1.2478
-2024-11-21 06:42:10.967479 Epoch [001/180], Step [0220/0400], Total_loss: 2.4756 Loss1: 1.1484 Loss2: 1.2456
-2024-11-21 06:42:53.764522 Epoch [001/180], Step [0240/0400], Total_loss: 2.3923 Loss1: 1.1309 Loss2: 1.1751
-2024-11-21 06:43:36.297170 Epoch [001/180], Step [0260/0400], Total_loss: 2.5900 Loss1: 1.1583 Loss2: 1.3425
-2024-11-21 06:44:18.931908 Epoch [001/180], Step [0280/0400], Total_loss: 2.5892 Loss1: 1.1550 Loss2: 1.3371
-2024-11-21 06:45:01.389869 Epoch [001/180], Step [0300/0400], Total_loss: 2.4150 Loss1: 1.0977 Loss2: 1.2325
-2024-11-21 06:45:44.014427 Epoch [001/180], Step [0320/0400], Total_loss: 2.4108 Loss1: 1.1185 Loss2: 1.2391
-2024-11-21 06:46:26.647582 Epoch [001/180], Step [0340/0400], Total_loss: 2.3692 Loss1: 1.0994 Loss2: 1.1256
-2024-11-21 06:47:09.571050 Epoch [001/180], Step [0360/0400], Total_loss: 2.4091 Loss1: 1.1081 Loss2: 1.2004
-2024-11-21 06:47:52.323083 Epoch [001/180], Step [0380/0400], Total_loss: 2.4460 Loss1: 1.1168 Loss2: 1.2184
-2024-11-21 06:48:34.627081 Epoch [001/180], Step [0400/0400], Total_loss: 2.7021 Loss1: 1.1898 Loss2: 1.4194
+/opt/conda/lib/python3.10/site-packages/torch/nn/functional.py:3809: UserWarning: nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.
+  warnings.warn("nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.")
+2024-11-25 01:06:04.582838 Epoch [001/180], Step [0001/0750], Total_loss: 4.9613 Loss1: 1.9275 Loss2: 3.0338
+2024-11-25 01:06:39.522288 Epoch [001/180], Step [0020/0750], Total_loss: 2.3746 Loss1: 1.2475 Loss2: 1.1261
+2024-11-25 01:07:16.841060 Epoch [001/180], Step [0040/0750], Total_loss: 2.2108 Loss1: 1.1703 Loss2: 1.0379
+2024-11-25 01:07:54.030453 Epoch [001/180], Step [0060/0750], Total_loss: 2.1121 Loss1: 1.1226 Loss2: 0.9859
+2024-11-25 01:08:31.358612 Epoch [001/180], Step [0080/0750], Total_loss: 2.1584 Loss1: 1.1221 Loss2: 1.0305
+2024-11-25 01:09:08.615631 Epoch [001/180], Step [0100/0750], Total_loss: 2.0133 Loss1: 1.0773 Loss2: 0.9291
+2024-11-25 01:09:45.721955 Epoch [001/180], Step [0120/0750], Total_loss: 1.9752 Loss1: 1.0240 Loss2: 0.9374
+2024-11-25 01:10:23.079729 Epoch [001/180], Step [0140/0750], Total_loss: 2.1530 Loss1: 1.1000 Loss2: 1.0352
+2024-11-25 01:11:00.154043 Epoch [001/180], Step [0160/0750], Total_loss: 2.1204 Loss1: 1.0841 Loss2: 1.0137
+2024-11-25 01:11:37.133676 Epoch [001/180], Step [0180/0750], Total_loss: 2.0762 Loss1: 1.0674 Loss2: 0.9849
+2024-11-25 01:12:14.207186 Epoch [001/180], Step [0200/0750], Total_loss: 1.9425 Loss1: 0.9969 Loss2: 0.9235
+2024-11-25 01:12:51.379082 Epoch [001/180], Step [0220/0750], Total_loss: 1.8735 Loss1: 0.9911 Loss2: 0.8577
+2024-11-25 01:13:28.391906 Epoch [001/180], Step [0240/0750], Total_loss: 1.8707 Loss1: 0.9792 Loss2: 0.8631
+2024-11-25 01:14:05.409553 Epoch [001/180], Step [0260/0750], Total_loss: 2.0841 Loss1: 1.0317 Loss2: 1.0145
+2024-11-25 01:14:42.479881 Epoch [001/180], Step [0280/0750], Total_loss: 1.9295 Loss1: 0.9761 Loss2: 0.9222
+2024-11-25 01:15:19.793947 Epoch [001/180], Step [0300/0750], Total_loss: 2.2393 Loss1: 1.0994 Loss2: 1.0907
+2024-11-25 01:15:56.951755 Epoch [001/180], Step [0320/0750], Total_loss: 1.7813 Loss1: 0.9308 Loss2: 0.8116
+2024-11-25 01:16:34.185026 Epoch [001/180], Step [0340/0750], Total_loss: 2.0756 Loss1: 1.0280 Loss2: 0.9991
+2024-11-25 01:17:11.923760 Epoch [001/180], Step [0360/0750], Total_loss: 2.2257 Loss1: 1.0741 Loss2: 1.0983
+2024-11-25 01:17:48.773681 Epoch [001/180], Step [0380/0750], Total_loss: 1.9031 Loss1: 0.9855 Loss2: 0.8894
+2024-11-25 01:18:25.822314 Epoch [001/180], Step [0400/0750], Total_loss: 1.8277 Loss1: 0.9448 Loss2: 0.8284
+2024-11-25 01:19:02.644315 Epoch [001/180], Step [0420/0750], Total_loss: 1.9483 Loss1: 1.0003 Loss2: 0.9119
+2024-11-25 01:19:39.681264 Epoch [001/180], Step [0440/0750], Total_loss: 1.7611 Loss1: 0.8987 Loss2: 0.8125
+2024-11-25 01:20:17.176932 Epoch [001/180], Step [0460/0750], Total_loss: 2.0275 Loss1: 0.9807 Loss2: 0.9645
+2024-11-25 01:20:54.083749 Epoch [001/180], Step [0480/0750], Total_loss: 2.1033 Loss1: 1.0043 Loss2: 1.0473
+2024-11-25 01:21:30.895814 Epoch [001/180], Step [0500/0750], Total_loss: 1.9239 Loss1: 0.9489 Loss2: 0.9072
+2024-11-25 01:22:07.701276 Epoch [001/180], Step [0520/0750], Total_loss: 2.0522 Loss1: 0.9950 Loss2: 0.9829
+2024-11-25 01:22:44.942979 Epoch [001/180], Step [0540/0750], Total_loss: 1.7869 Loss1: 0.8933 Loss2: 0.8018
+2024-11-25 01:23:23.051935 Epoch [001/180], Step [0560/0750], Total_loss: 2.0982 Loss1: 0.9800 Loss2: 1.0321
+2024-11-25 01:23:59.998355 Epoch [001/180], Step [0580/0750], Total_loss: 2.1520 Loss1: 1.0027 Loss2: 1.0734
+2024-11-25 01:24:37.100000 Epoch [001/180], Step [0600/0750], Total_loss: 2.0467 Loss1: 0.9937 Loss2: 0.9792
+2024-11-25 01:25:14.279767 Epoch [001/180], Step [0620/0750], Total_loss: 2.3353 Loss1: 1.1046 Loss2: 1.1439
+2024-11-25 01:25:51.248797 Epoch [001/180], Step [0640/0750], Total_loss: 2.0147 Loss1: 0.9847 Loss2: 0.9352
+2024-11-25 01:26:28.101711 Epoch [001/180], Step [0660/0750], Total_loss: 2.0600 Loss1: 0.9814 Loss2: 1.0223
+2024-11-25 01:27:05.038712 Epoch [001/180], Step [0680/0750], Total_loss: 2.2203 Loss1: 1.0533 Loss2: 1.0990
+2024-11-25 01:27:41.870378 Epoch [001/180], Step [0700/0750], Total_loss: 1.7951 Loss1: 0.8813 Loss2: 0.8634
+2024-11-25 01:28:18.646540 Epoch [001/180], Step [0720/0750], Total_loss: 2.1880 Loss1: 1.0287 Loss2: 1.0964
+2024-11-25 01:28:55.378862 Epoch [001/180], Step [0740/0750], Total_loss: 2.0907 Loss1: 1.0235 Loss2: 1.0121
+2024-11-25 01:29:13.762541 Epoch [001/180], Step [0750/0750], Total_loss: 1.6846 Loss1: 0.8625 Loss2: 0.7816
+Epoch: 1, MAE: 0.043783288521387166, bestMAE: 1, bestEpoch: 0.
+2024-11-25 01:39:58.037662 Epoch [002/180], Step [0001/0750], Total_loss: 1.9575 Loss1: 0.9855 Loss2: 0.9720
+2024-11-25 01:40:34.056396 Epoch [002/180], Step [0020/0750], Total_loss: 1.7272 Loss1: 0.9247 Loss2: 0.8023
+2024-11-25 01:41:11.627404 Epoch [002/180], Step [0040/0750], Total_loss: 2.1717 Loss1: 1.0450 Loss2: 1.1260
+2024-11-25 01:41:48.578081 Epoch [002/180], Step [0060/0750], Total_loss: 2.0013 Loss1: 1.0095 Loss2: 0.9893
+2024-11-25 01:42:24.809608 Epoch [002/180], Step [0080/0750], Total_loss: 1.8452 Loss1: 0.9449 Loss2: 0.8981
+2024-11-25 01:43:00.936333 Epoch [002/180], Step [0100/0750], Total_loss: 1.6097 Loss1: 0.8421 Loss2: 0.7616
+2024-11-25 01:43:37.025493 Epoch [002/180], Step [0120/0750], Total_loss: 1.9590 Loss1: 0.9738 Loss2: 0.9790
+2024-11-25 01:44:12.936109 Epoch [002/180], Step [0140/0750], Total_loss: 1.8710 Loss1: 0.9409 Loss2: 0.9252
+2024-11-25 01:44:49.059912 Epoch [002/180], Step [0160/0750], Total_loss: 1.6735 Loss1: 0.8562 Loss2: 0.8092
+2024-11-25 01:45:24.993874 Epoch [002/180], Step [0180/0750], Total_loss: 1.7502 Loss1: 0.8742 Loss2: 0.8543
+2024-11-25 01:46:00.920685 Epoch [002/180], Step [0200/0750], Total_loss: 1.8532 Loss1: 0.9389 Loss2: 0.9009
+2024-11-25 01:46:36.700233 Epoch [002/180], Step [0220/0750], Total_loss: 1.6001 Loss1: 0.8250 Loss2: 0.7519
+2024-11-25 01:47:12.675357 Epoch [002/180], Step [0240/0750], Total_loss: 2.2362 Loss1: 1.0637 Loss2: 1.1666
+2024-11-25 01:47:48.958375 Epoch [002/180], Step [0260/0750], Total_loss: 1.8611 Loss1: 0.9298 Loss2: 0.9075
+2024-11-25 01:48:25.029373 Epoch [002/180], Step [0280/0750], Total_loss: 1.9879 Loss1: 0.9729 Loss2: 0.9907
+2024-11-25 01:49:01.164302 Epoch [002/180], Step [0300/0750], Total_loss: 1.6026 Loss1: 0.8266 Loss2: 0.7522
+2024-11-25 01:49:37.092478 Epoch [002/180], Step [0320/0750], Total_loss: 2.0346 Loss1: 0.9697 Loss2: 0.9893
+2024-11-25 01:50:13.121624 Epoch [002/180], Step [0340/0750], Total_loss: 2.0806 Loss1: 0.9741 Loss2: 1.0787
+2024-11-25 01:50:49.108836 Epoch [002/180], Step [0360/0750], Total_loss: 1.9209 Loss1: 0.9593 Loss2: 0.9253
+2024-11-25 01:51:25.093704 Epoch [002/180], Step [0380/0750], Total_loss: 2.0467 Loss1: 0.9919 Loss2: 1.0086
+2024-11-25 01:52:00.957445 Epoch [002/180], Step [0400/0750], Total_loss: 2.0527 Loss1: 0.9786 Loss2: 0.9961
+2024-11-25 01:52:37.107577 Epoch [002/180], Step [0420/0750], Total_loss: 2.1041 Loss1: 0.9937 Loss2: 1.0617
+2024-11-25 01:53:13.353993 Epoch [002/180], Step [0440/0750], Total_loss: 1.9827 Loss1: 0.9706 Loss2: 0.9558
+2024-11-25 01:53:49.375011 Epoch [002/180], Step [0460/0750], Total_loss: 1.7414 Loss1: 0.8701 Loss2: 0.8232
+2024-11-25 01:54:25.488981 Epoch [002/180], Step [0480/0750], Total_loss: 1.4862 Loss1: 0.7827 Loss2: 0.6778
+2024-11-25 01:55:01.601242 Epoch [002/180], Step [0500/0750], Total_loss: 1.7468 Loss1: 0.8756 Loss2: 0.8278
+2024-11-25 01:55:37.560006 Epoch [002/180], Step [0520/0750], Total_loss: 1.8474 Loss1: 0.9095 Loss2: 0.8949
+2024-11-25 01:56:13.438171 Epoch [002/180], Step [0540/0750], Total_loss: 1.7095 Loss1: 0.8387 Loss2: 0.8004
+2024-11-25 01:56:49.700976 Epoch [002/180], Step [0560/0750], Total_loss: 1.9951 Loss1: 0.9651 Loss2: 0.9690
+2024-11-25 01:57:25.939164 Epoch [002/180], Step [0580/0750], Total_loss: 1.9821 Loss1: 0.9576 Loss2: 0.9861
+2024-11-25 01:58:01.897223 Epoch [002/180], Step [0600/0750], Total_loss: 1.6637 Loss1: 0.8494 Loss2: 0.7672
+2024-11-25 01:58:37.986654 Epoch [002/180], Step [0620/0750], Total_loss: 1.5746 Loss1: 0.7814 Loss2: 0.6865
+2024-11-25 01:59:14.155590 Epoch [002/180], Step [0640/0750], Total_loss: 1.8670 Loss1: 0.9348 Loss2: 0.9050
+2024-11-25 01:59:49.936572 Epoch [002/180], Step [0660/0750], Total_loss: 1.8790 Loss1: 0.9254 Loss2: 0.8914
+2024-11-25 02:00:25.886585 Epoch [002/180], Step [0680/0750], Total_loss: 1.9743 Loss1: 0.9155 Loss2: 0.9660
+2024-11-25 02:01:02.188659 Epoch [002/180], Step [0700/0750], Total_loss: 1.8783 Loss1: 0.8912 Loss2: 0.8772
+2024-11-25 02:01:38.129957 Epoch [002/180], Step [0720/0750], Total_loss: 1.6445 Loss1: 0.8424 Loss2: 0.7573
+2024-11-25 02:02:13.980155 Epoch [002/180], Step [0740/0750], Total_loss: 1.9574 Loss1: 0.9430 Loss2: 0.9592
+2024-11-25 02:02:32.272649 Epoch [002/180], Step [0750/0750], Total_loss: 1.8910 Loss1: 0.9372 Loss2: 0.9217
+Epoch: 2, MAE: 0.034965703181874704, bestMAE: 0.043783288521387166, bestEpoch: 1.
+Save state_dict successfully! Best epoch:2.
+2024-11-25 02:12:37.271181 Epoch [003/180], Step [0001/0750], Total_loss: 2.0400 Loss1: 0.9915 Loss2: 1.0485
+2024-11-25 02:13:12.197802 Epoch [003/180], Step [0020/0750], Total_loss: 1.8139 Loss1: 0.9146 Loss2: 0.8991
+2024-11-25 02:13:49.029201 Epoch [003/180], Step [0040/0750], Total_loss: 1.9028 Loss1: 0.9554 Loss2: 0.9471
+2024-11-25 02:14:25.617511 Epoch [003/180], Step [0060/0750], Total_loss: 1.7871 Loss1: 0.9036 Loss2: 0.8827
+2024-11-25 02:15:01.813245 Epoch [003/180], Step [0080/0750], Total_loss: 1.7117 Loss1: 0.8756 Loss2: 0.8350
+2024-11-25 02:15:38.684005 Epoch [003/180], Step [0100/0750], Total_loss: 1.7641 Loss1: 0.8981 Loss2: 0.8636
+2024-11-25 02:16:14.917063 Epoch [003/180], Step [0120/0750], Total_loss: 2.2410 Loss1: 1.0473 Loss2: 1.1868
+2024-11-25 02:16:51.366706 Epoch [003/180], Step [0140/0750], Total_loss: 1.8728 Loss1: 0.9257 Loss2: 0.9394
+2024-11-25 02:17:29.000808 Epoch [003/180], Step [0160/0750], Total_loss: 1.6005 Loss1: 0.8394 Loss2: 0.7560
+2024-11-25 02:18:06.969472 Epoch [003/180], Step [0180/0750], Total_loss: 2.0461 Loss1: 0.9991 Loss2: 1.0370
+2024-11-25 02:18:44.124634 Epoch [003/180], Step [0200/0750], Total_loss: 1.4181 Loss1: 0.7445 Loss2: 0.6624
+2024-11-25 02:19:21.560514 Epoch [003/180], Step [0220/0750], Total_loss: 1.8933 Loss1: 0.9401 Loss2: 0.9404
+2024-11-25 02:19:59.073633 Epoch [003/180], Step [0240/0750], Total_loss: 1.6362 Loss1: 0.8289 Loss2: 0.7918
+2024-11-25 02:20:35.816827 Epoch [003/180], Step [0260/0750], Total_loss: 1.3465 Loss1: 0.7156 Loss2: 0.6124
+2024-11-25 02:21:12.671483 Epoch [003/180], Step [0280/0750], Total_loss: 1.5801 Loss1: 0.8109 Loss2: 0.7335
+2024-11-25 02:21:49.410048 Epoch [003/180], Step [0300/0750], Total_loss: 1.9350 Loss1: 0.9693 Loss2: 0.9607
+2024-11-25 02:22:26.084543 Epoch [003/180], Step [0320/0750], Total_loss: 1.6399 Loss1: 0.8314 Loss2: 0.7870
+2024-11-25 02:23:02.412506 Epoch [003/180], Step [0340/0750], Total_loss: 1.9565 Loss1: 0.9574 Loss2: 0.9512
+2024-11-25 02:23:38.644699 Epoch [003/180], Step [0360/0750], Total_loss: 1.7647 Loss1: 0.8734 Loss2: 0.8662
+2024-11-25 02:24:15.088798 Epoch [003/180], Step [0380/0750], Total_loss: 1.5766 Loss1: 0.8033 Loss2: 0.7500
+2024-11-25 02:24:51.502245 Epoch [003/180], Step [0400/0750], Total_loss: 1.5849 Loss1: 0.8210 Loss2: 0.7556
+2024-11-25 02:25:28.046173 Epoch [003/180], Step [0420/0750], Total_loss: 1.8236 Loss1: 0.9078 Loss2: 0.8688
+2024-11-25 02:26:04.602136 Epoch [003/180], Step [0440/0750], Total_loss: 1.6866 Loss1: 0.8324 Loss2: 0.8029
+2024-11-25 02:26:41.064493 Epoch [003/180], Step [0460/0750], Total_loss: 1.6954 Loss1: 0.8338 Loss2: 0.8287
+2024-11-25 02:27:17.894325 Epoch [003/180], Step [0480/0750], Total_loss: 2.1649 Loss1: 1.0228 Loss2: 1.1080
+2024-11-25 02:27:54.203579 Epoch [003/180], Step [0500/0750], Total_loss: 1.4408 Loss1: 0.7204 Loss2: 0.6149
+2024-11-25 02:28:30.848477 Epoch [003/180], Step [0520/0750], Total_loss: 1.5556 Loss1: 0.7913 Loss2: 0.7325
+2024-11-25 02:29:07.659933 Epoch [003/180], Step [0540/0750], Total_loss: 1.8219 Loss1: 0.8687 Loss2: 0.8559
+2024-11-25 02:29:43.896565 Epoch [003/180], Step [0560/0750], Total_loss: 2.0150 Loss1: 0.9762 Loss2: 1.0060
+2024-11-25 02:30:20.333245 Epoch [003/180], Step [0580/0750], Total_loss: 2.0631 Loss1: 0.9894 Loss2: 1.0252
+2024-11-25 02:30:56.825956 Epoch [003/180], Step [0600/0750], Total_loss: 1.4074 Loss1: 0.6969 Loss2: 0.6246
+2024-11-25 02:31:33.382738 Epoch [003/180], Step [0620/0750], Total_loss: 1.7779 Loss1: 0.8784 Loss2: 0.8631
+2024-11-25 02:32:09.713541 Epoch [003/180], Step [0640/0750], Total_loss: 2.1350 Loss1: 0.9670 Loss2: 1.0563
+2024-11-25 02:32:46.200656 Epoch [003/180], Step [0660/0750], Total_loss: 2.0268 Loss1: 0.9313 Loss2: 0.9968
+2024-11-25 02:33:22.587280 Epoch [003/180], Step [0680/0750], Total_loss: 2.1067 Loss1: 0.9799 Loss2: 1.0671
+2024-11-25 02:33:59.025770 Epoch [003/180], Step [0700/0750], Total_loss: 2.0311 Loss1: 0.9957 Loss2: 0.9969
+2024-11-25 02:34:35.793345 Epoch [003/180], Step [0720/0750], Total_loss: 2.0166 Loss1: 0.9564 Loss2: 0.9641
+2024-11-25 02:35:12.034079 Epoch [003/180], Step [0740/0750], Total_loss: 1.8943 Loss1: 0.9003 Loss2: 0.9393
+2024-11-25 02:35:30.223532 Epoch [003/180], Step [0750/0750], Total_loss: 1.7950 Loss1: 0.8844 Loss2: 0.8408
+Epoch: 3, MAE: 0.038258956344420766, bestMAE: 0.034965703181874704, bestEpoch: 2.
+2024-11-25 02:45:16.744398 Epoch [004/180], Step [0001/0750], Total_loss: 1.7069 Loss1: 0.8878 Loss2: 0.8190
+2024-11-25 02:45:51.724142 Epoch [004/180], Step [0020/0750], Total_loss: 1.4812 Loss1: 0.7684 Loss2: 0.7127
+2024-11-25 02:46:28.350098 Epoch [004/180], Step [0040/0750], Total_loss: 1.4709 Loss1: 0.7706 Loss2: 0.6998
+2024-11-25 02:47:04.768509 Epoch [004/180], Step [0060/0750], Total_loss: 1.5297 Loss1: 0.7890 Loss2: 0.7396
+2024-11-25 02:47:41.342854 Epoch [004/180], Step [0080/0750], Total_loss: 1.6985 Loss1: 0.8484 Loss2: 0.8481
+2024-11-25 02:48:17.859961 Epoch [004/180], Step [0100/0750], Total_loss: 1.5343 Loss1: 0.7900 Loss2: 0.7399
+2024-11-25 02:48:54.224513 Epoch [004/180], Step [0120/0750], Total_loss: 1.9031 Loss1: 0.9176 Loss2: 0.9827
+2024-11-25 02:49:30.699553 Epoch [004/180], Step [0140/0750], Total_loss: 1.5557 Loss1: 0.8058 Loss2: 0.7453
+2024-11-25 02:50:07.172453 Epoch [004/180], Step [0160/0750], Total_loss: 1.9930 Loss1: 0.9901 Loss2: 0.9952
+2024-11-25 02:50:43.557117 Epoch [004/180], Step [0180/0750], Total_loss: 1.4592 Loss1: 0.7774 Loss2: 0.6786
+2024-11-25 02:51:20.191173 Epoch [004/180], Step [0200/0750], Total_loss: 1.5141 Loss1: 0.7777 Loss2: 0.7262
+2024-11-25 02:51:57.019872 Epoch [004/180], Step [0220/0750], Total_loss: 1.5133 Loss1: 0.7771 Loss2: 0.7183
+2024-11-25 02:52:33.564615 Epoch [004/180], Step [0240/0750], Total_loss: 1.6818 Loss1: 0.8395 Loss2: 0.8285
+2024-11-25 02:53:10.034474 Epoch [004/180], Step [0260/0750], Total_loss: 1.9068 Loss1: 0.9421 Loss2: 0.9520
+2024-11-25 02:53:46.756461 Epoch [004/180], Step [0280/0750], Total_loss: 1.6161 Loss1: 0.8320 Loss2: 0.7748
+2024-11-25 02:54:23.348244 Epoch [004/180], Step [0300/0750], Total_loss: 1.6643 Loss1: 0.8306 Loss2: 0.7992
+2024-11-25 02:55:00.266465 Epoch [004/180], Step [0320/0750], Total_loss: 1.8073 Loss1: 0.8650 Loss2: 0.9144
+2024-11-25 02:55:36.599929 Epoch [004/180], Step [0340/0750], Total_loss: 1.4296 Loss1: 0.7348 Loss2: 0.6737
+2024-11-25 02:56:13.172372 Epoch [004/180], Step [0360/0750], Total_loss: 1.6846 Loss1: 0.8308 Loss2: 0.8161
+2024-11-25 02:56:49.545151 Epoch [004/180], Step [0380/0750], Total_loss: 2.0594 Loss1: 0.9950 Loss2: 1.0552
+2024-11-25 02:57:25.879819 Epoch [004/180], Step [0400/0750], Total_loss: 1.6617 Loss1: 0.8488 Loss2: 0.7875
+2024-11-25 02:58:02.304546 Epoch [004/180], Step [0420/0750], Total_loss: 1.7097 Loss1: 0.8407 Loss2: 0.8538
+2024-11-25 02:58:38.612015 Epoch [004/180], Step [0440/0750], Total_loss: 1.8529 Loss1: 0.9209 Loss2: 0.9102
+2024-11-25 02:59:15.073183 Epoch [004/180], Step [0460/0750], Total_loss: 1.4585 Loss1: 0.7513 Loss2: 0.6943
+2024-11-25 02:59:51.492118 Epoch [004/180], Step [0480/0750], Total_loss: 1.6250 Loss1: 0.8074 Loss2: 0.7818
+2024-11-25 03:00:27.933787 Epoch [004/180], Step [0500/0750], Total_loss: 1.7435 Loss1: 0.8757 Loss2: 0.8598
+2024-11-25 03:01:04.444554 Epoch [004/180], Step [0520/0750], Total_loss: 1.8692 Loss1: 0.9068 Loss2: 0.9383
+2024-11-25 03:01:40.820102 Epoch [004/180], Step [0540/0750], Total_loss: 1.9892 Loss1: 0.9369 Loss2: 0.9985
+2024-11-25 03:02:17.095731 Epoch [004/180], Step [0560/0750], Total_loss: 1.5631 Loss1: 0.7788 Loss2: 0.7449
+2024-11-25 03:02:53.526722 Epoch [004/180], Step [0580/0750], Total_loss: 1.6202 Loss1: 0.7881 Loss2: 0.7869
+2024-11-25 03:03:30.091075 Epoch [004/180], Step [0600/0750], Total_loss: 1.8032 Loss1: 0.8852 Loss2: 0.8756
+2024-11-25 03:04:06.580010 Epoch [004/180], Step [0620/0750], Total_loss: 1.8449 Loss1: 0.8787 Loss2: 0.9168
+2024-11-25 03:04:42.867513 Epoch [004/180], Step [0640/0750], Total_loss: 1.7953 Loss1: 0.8577 Loss2: 0.8569
+2024-11-25 03:05:19.259227 Epoch [004/180], Step [0660/0750], Total_loss: 1.6472 Loss1: 0.8175 Loss2: 0.7966
+2024-11-25 03:05:55.445772 Epoch [004/180], Step [0680/0750], Total_loss: 1.6916 Loss1: 0.8397 Loss2: 0.8148
+2024-11-25 03:06:32.055910 Epoch [004/180], Step [0700/0750], Total_loss: 1.8430 Loss1: 0.9148 Loss2: 0.8990
+2024-11-25 03:07:08.505773 Epoch [004/180], Step [0720/0750], Total_loss: 1.6827 Loss1: 0.8117 Loss2: 0.8056
+2024-11-25 03:07:44.570893 Epoch [004/180], Step [0740/0750], Total_loss: 1.8956 Loss1: 0.9079 Loss2: 0.9164
+2024-11-25 03:08:02.489532 Epoch [004/180], Step [0750/0750], Total_loss: 1.9196 Loss1: 0.9166 Loss2: 0.9722
+Epoch: 4, MAE: 0.03494367310765148, bestMAE: 0.034965703181874704, bestEpoch: 2.
+Save state_dict successfully! Best epoch:4.
+2024-11-25 03:17:51.287146 Epoch [005/180], Step [0001/0750], Total_loss: 1.7102 Loss1: 0.8711 Loss2: 0.8391
+2024-11-25 03:18:25.892018 Epoch [005/180], Step [0020/0750], Total_loss: 1.8191 Loss1: 0.8879 Loss2: 0.9310
+2024-11-25 03:19:02.292698 Epoch [005/180], Step [0040/0750], Total_loss: 1.5031 Loss1: 0.7837 Loss2: 0.7191
+2024-11-25 03:19:38.840999 Epoch [005/180], Step [0060/0750], Total_loss: 1.6905 Loss1: 0.8486 Loss2: 0.8407
+2024-11-25 03:20:15.224856 Epoch [005/180], Step [0080/0750], Total_loss: 1.4380 Loss1: 0.7372 Loss2: 0.6987
+2024-11-25 03:20:51.701795 Epoch [005/180], Step [0100/0750], Total_loss: 1.7450 Loss1: 0.8792 Loss2: 0.8636
+2024-11-25 03:21:28.182374 Epoch [005/180], Step [0120/0750], Total_loss: 1.5167 Loss1: 0.7708 Loss2: 0.7426
+2024-11-25 03:22:04.467725 Epoch [005/180], Step [0140/0750], Total_loss: 1.5392 Loss1: 0.7839 Loss2: 0.7518
+2024-11-25 03:22:40.863338 Epoch [005/180], Step [0160/0750], Total_loss: 1.8934 Loss1: 0.9354 Loss2: 0.9552
+2024-11-25 03:23:17.004257 Epoch [005/180], Step [0180/0750], Total_loss: 1.5093 Loss1: 0.7750 Loss2: 0.7268
+2024-11-25 03:23:53.288939 Epoch [005/180], Step [0200/0750], Total_loss: 1.7778 Loss1: 0.8854 Loss2: 0.8847
+2024-11-25 03:24:29.612976 Epoch [005/180], Step [0220/0750], Total_loss: 1.7625 Loss1: 0.8611 Loss2: 0.8827
+2024-11-25 03:25:06.115169 Epoch [005/180], Step [0240/0750], Total_loss: 1.7503 Loss1: 0.8740 Loss2: 0.8651
+2024-11-25 03:25:42.497331 Epoch [005/180], Step [0260/0750], Total_loss: 1.6358 Loss1: 0.8256 Loss2: 0.8003
+2024-11-25 03:26:19.012267 Epoch [005/180], Step [0280/0750], Total_loss: 1.4164 Loss1: 0.7382 Loss2: 0.6621
+2024-11-25 03:26:55.326970 Epoch [005/180], Step [0300/0750], Total_loss: 1.5268 Loss1: 0.7728 Loss2: 0.7395
+2024-11-25 03:27:31.678091 Epoch [005/180], Step [0320/0750], Total_loss: 1.9656 Loss1: 0.9576 Loss2: 1.0029
+2024-11-25 03:28:07.859710 Epoch [005/180], Step [0340/0750], Total_loss: 1.6554 Loss1: 0.8060 Loss2: 0.8188
+2024-11-25 03:28:44.440033 Epoch [005/180], Step [0360/0750], Total_loss: 1.7010 Loss1: 0.8530 Loss2: 0.8391
+2024-11-25 03:29:20.675101 Epoch [005/180], Step [0380/0750], Total_loss: 1.9247 Loss1: 0.9333 Loss2: 0.9831
+2024-11-25 03:29:57.023496 Epoch [005/180], Step [0400/0750], Total_loss: 1.7977 Loss1: 0.8786 Loss2: 0.8399
+2024-11-25 03:30:33.263761 Epoch [005/180], Step [0420/0750], Total_loss: 1.6035 Loss1: 0.7990 Loss2: 0.7746
+2024-11-25 03:31:09.563278 Epoch [005/180], Step [0440/0750], Total_loss: 1.5689 Loss1: 0.7910 Loss2: 0.7664
+2024-11-25 03:31:45.839521 Epoch [005/180], Step [0460/0750], Total_loss: 2.1325 Loss1: 0.9927 Loss2: 1.0896
+2024-11-25 03:32:22.181693 Epoch [005/180], Step [0480/0750], Total_loss: 1.6832 Loss1: 0.8445 Loss2: 0.8209
+2024-11-25 03:32:58.613123 Epoch [005/180], Step [0500/0750], Total_loss: 1.6155 Loss1: 0.8039 Loss2: 0.7741
+2024-11-25 03:33:34.870660 Epoch [005/180], Step [0520/0750], Total_loss: 1.7241 Loss1: 0.8537 Loss2: 0.8628
+2024-11-25 03:34:11.175692 Epoch [005/180], Step [0540/0750], Total_loss: 1.4251 Loss1: 0.7373 Loss2: 0.6606
+2024-11-25 03:34:47.259090 Epoch [005/180], Step [0560/0750], Total_loss: 1.5040 Loss1: 0.7546 Loss2: 0.7244
+2024-11-25 03:35:24.304187 Epoch [005/180], Step [0580/0750], Total_loss: 2.2641 Loss1: 1.0519 Loss2: 1.1703
+2024-11-25 03:36:00.617712 Epoch [005/180], Step [0600/0750], Total_loss: 1.7329 Loss1: 0.8639 Loss2: 0.8529
+2024-11-25 03:36:38.565157 Epoch [005/180], Step [0620/0750], Total_loss: 2.0199 Loss1: 0.9142 Loss2: 1.0452
+2024-11-25 03:37:16.039111 Epoch [005/180], Step [0640/0750], Total_loss: 1.7469 Loss1: 0.8339 Loss2: 0.8450
+2024-11-25 03:37:54.022841 Epoch [005/180], Step [0660/0750], Total_loss: 1.7461 Loss1: 0.8519 Loss2: 0.8674
+2024-11-25 03:38:30.613932 Epoch [005/180], Step [0680/0750], Total_loss: 1.6367 Loss1: 0.8002 Loss2: 0.7816
+2024-11-25 03:39:07.091753 Epoch [005/180], Step [0700/0750], Total_loss: 1.8747 Loss1: 0.8911 Loss2: 0.9690
+2024-11-25 03:39:43.575003 Epoch [005/180], Step [0720/0750], Total_loss: 1.9026 Loss1: 0.9022 Loss2: 0.9498
+2024-11-25 03:40:19.627239 Epoch [005/180], Step [0740/0750], Total_loss: 1.4607 Loss1: 0.7574 Loss2: 0.6823
+2024-11-25 03:40:37.880345 Epoch [005/180], Step [0750/0750], Total_loss: 1.5991 Loss1: 0.7904 Loss2: 0.7635
+Epoch: 5, MAE: 0.03319016191575738, bestMAE: 0.03494367310765148, bestEpoch: 4.
+Save state_dict successfully! Best epoch:5.
+2024-11-25 03:50:30.561786 Epoch [006/180], Step [0001/0750], Total_loss: 1.5412 Loss1: 0.7803 Loss2: 0.7609
+2024-11-25 03:51:05.295979 Epoch [006/180], Step [0020/0750], Total_loss: 1.6627 Loss1: 0.8386 Loss2: 0.8240
+2024-11-25 03:51:41.729747 Epoch [006/180], Step [0040/0750], Total_loss: 1.8646 Loss1: 0.9345 Loss2: 0.9297
+2024-11-25 03:52:18.286206 Epoch [006/180], Step [0060/0750], Total_loss: 1.5362 Loss1: 0.7862 Loss2: 0.7491
+2024-11-25 03:52:54.774569 Epoch [006/180], Step [0080/0750], Total_loss: 1.4990 Loss1: 0.7680 Loss2: 0.7301
+2024-11-25 03:53:31.410309 Epoch [006/180], Step [0100/0750], Total_loss: 1.6176 Loss1: 0.8168 Loss2: 0.7984
+2024-11-25 03:54:08.043439 Epoch [006/180], Step [0120/0750], Total_loss: 1.7483 Loss1: 0.8730 Loss2: 0.8746
+2024-11-25 03:54:44.647892 Epoch [006/180], Step [0140/0750], Total_loss: 1.5531 Loss1: 0.8005 Loss2: 0.7448
+2024-11-25 03:55:21.127634 Epoch [006/180], Step [0160/0750], Total_loss: 1.5829 Loss1: 0.7969 Loss2: 0.7801
+2024-11-25 03:55:57.757742 Epoch [006/180], Step [0180/0750], Total_loss: 1.7073 Loss1: 0.8552 Loss2: 0.8423
+2024-11-25 03:56:34.523999 Epoch [006/180], Step [0200/0750], Total_loss: 1.1299 Loss1: 0.6156 Loss2: 0.5094
+2024-11-25 03:57:11.158456 Epoch [006/180], Step [0220/0750], Total_loss: 1.7566 Loss1: 0.8776 Loss2: 0.8775
+2024-11-25 03:57:49.445203 Epoch [006/180], Step [0240/0750], Total_loss: 1.6615 Loss1: 0.8453 Loss2: 0.8000
+2024-11-25 03:58:26.292643 Epoch [006/180], Step [0260/0750], Total_loss: 1.6961 Loss1: 0.8576 Loss2: 0.8361
+2024-11-25 03:59:02.868537 Epoch [006/180], Step [0280/0750], Total_loss: 1.4283 Loss1: 0.7373 Loss2: 0.6744
+2024-11-25 03:59:39.661558 Epoch [006/180], Step [0300/0750], Total_loss: 1.4465 Loss1: 0.7400 Loss2: 0.6769
+2024-11-25 04:00:16.692824 Epoch [006/180], Step [0320/0750], Total_loss: 1.4934 Loss1: 0.7494 Loss2: 0.7196
+2024-11-25 04:00:53.517984 Epoch [006/180], Step [0340/0750], Total_loss: 1.6149 Loss1: 0.8066 Loss2: 0.7724
+2024-11-25 04:01:30.453687 Epoch [006/180], Step [0360/0750], Total_loss: 1.6673 Loss1: 0.8349 Loss2: 0.8024
+2024-11-25 04:02:07.415824 Epoch [006/180], Step [0380/0750], Total_loss: 1.7478 Loss1: 0.8651 Loss2: 0.8646
+2024-11-25 04:02:44.299573 Epoch [006/180], Step [0400/0750], Total_loss: 1.4913 Loss1: 0.7582 Loss2: 0.7077
+2024-11-25 04:03:20.971869 Epoch [006/180], Step [0420/0750], Total_loss: 1.8280 Loss1: 0.8839 Loss2: 0.8872
+2024-11-25 04:03:57.588597 Epoch [006/180], Step [0440/0750], Total_loss: 1.8860 Loss1: 0.9251 Loss2: 0.9411
+2024-11-25 04:04:34.378082 Epoch [006/180], Step [0460/0750], Total_loss: 1.7412 Loss1: 0.8627 Loss2: 0.8619
+2024-11-25 04:05:11.339146 Epoch [006/180], Step [0480/0750], Total_loss: 1.7082 Loss1: 0.8300 Loss2: 0.8311
+2024-11-25 04:05:48.469778 Epoch [006/180], Step [0500/0750], Total_loss: 1.8208 Loss1: 0.8817 Loss2: 0.9216
+2024-11-25 04:06:25.318198 Epoch [006/180], Step [0520/0750], Total_loss: 1.3610 Loss1: 0.6920 Loss2: 0.6463
+2024-11-25 04:07:02.313605 Epoch [006/180], Step [0540/0750], Total_loss: 1.8292 Loss1: 0.8941 Loss2: 0.9213
+2024-11-25 04:07:39.260050 Epoch [006/180], Step [0560/0750], Total_loss: 1.5676 Loss1: 0.7789 Loss2: 0.7652
+2024-11-25 04:08:15.929137 Epoch [006/180], Step [0580/0750], Total_loss: 1.5377 Loss1: 0.7705 Loss2: 0.7376
+2024-11-25 04:08:52.726085 Epoch [006/180], Step [0600/0750], Total_loss: 1.4522 Loss1: 0.7339 Loss2: 0.6993
+2024-11-25 04:09:29.513566 Epoch [006/180], Step [0620/0750], Total_loss: 1.6586 Loss1: 0.8162 Loss2: 0.8162
+2024-11-25 04:10:06.314305 Epoch [006/180], Step [0640/0750], Total_loss: 1.8977 Loss1: 0.9124 Loss2: 0.9656
+2024-11-25 04:10:43.031992 Epoch [006/180], Step [0660/0750], Total_loss: 2.0055 Loss1: 0.9547 Loss2: 1.0369
+2024-11-25 04:11:19.549435 Epoch [006/180], Step [0680/0750], Total_loss: 1.7749 Loss1: 0.8667 Loss2: 0.8682
+2024-11-25 04:11:56.261725 Epoch [006/180], Step [0700/0750], Total_loss: 1.7623 Loss1: 0.8746 Loss2: 0.8756
+2024-11-25 04:12:33.157605 Epoch [006/180], Step [0720/0750], Total_loss: 1.8747 Loss1: 0.9239 Loss2: 0.9363
+2024-11-25 04:13:09.569609 Epoch [006/180], Step [0740/0750], Total_loss: 1.8981 Loss1: 0.9235 Loss2: 0.9627
+2024-11-25 04:13:28.362291 Epoch [006/180], Step [0750/0750], Total_loss: 1.5885 Loss1: 0.7931 Loss2: 0.7679
+Epoch: 6, MAE: 0.02966054327766183, bestMAE: 0.03319016191575738, bestEpoch: 5.
+Save state_dict successfully! Best epoch:6.
+2024-11-25 04:23:25.303925 Epoch [007/180], Step [0001/0750], Total_loss: 1.4890 Loss1: 0.7603 Loss2: 0.7287
+2024-11-25 04:24:00.504942 Epoch [007/180], Step [0020/0750], Total_loss: 1.4093 Loss1: 0.7247 Loss2: 0.6845
+2024-11-25 04:24:37.515189 Epoch [007/180], Step [0040/0750], Total_loss: 1.5711 Loss1: 0.8046 Loss2: 0.7663
+2024-11-25 04:25:14.693049 Epoch [007/180], Step [0060/0750], Total_loss: 1.5777 Loss1: 0.8007 Loss2: 0.7766
+2024-11-25 04:25:51.463874 Epoch [007/180], Step [0080/0750], Total_loss: 1.8490 Loss1: 0.9092 Loss2: 0.9384
+2024-11-25 04:26:28.411181 Epoch [007/180], Step [0100/0750], Total_loss: 1.4015 Loss1: 0.7183 Loss2: 0.6814
+2024-11-25 04:27:04.616129 Epoch [007/180], Step [0120/0750], Total_loss: 1.6554 Loss1: 0.8245 Loss2: 0.8276
+2024-11-25 04:27:41.390498 Epoch [007/180], Step [0140/0750], Total_loss: 1.7162 Loss1: 0.8535 Loss2: 0.8595
+2024-11-25 04:28:18.276799 Epoch [007/180], Step [0160/0750], Total_loss: 1.7290 Loss1: 0.8620 Loss2: 0.8646
+2024-11-25 04:28:55.162317 Epoch [007/180], Step [0180/0750], Total_loss: 1.4876 Loss1: 0.7536 Loss2: 0.7244
+2024-11-25 04:29:32.126426 Epoch [007/180], Step [0200/0750], Total_loss: 1.8267 Loss1: 0.8643 Loss2: 0.9482
+2024-11-25 04:30:09.108717 Epoch [007/180], Step [0220/0750], Total_loss: 1.3921 Loss1: 0.7270 Loss2: 0.6551
+2024-11-25 04:30:46.484077 Epoch [007/180], Step [0240/0750], Total_loss: 1.7530 Loss1: 0.8706 Loss2: 0.8712
+2024-11-25 04:31:24.110018 Epoch [007/180], Step [0260/0750], Total_loss: 1.4944 Loss1: 0.7554 Loss2: 0.7178
+2024-11-25 04:32:00.969365 Epoch [007/180], Step [0280/0750], Total_loss: 1.9187 Loss1: 0.9469 Loss2: 0.9574
+2024-11-25 04:32:37.875702 Epoch [007/180], Step [0300/0750], Total_loss: 1.7748 Loss1: 0.8821 Loss2: 0.8812
+2024-11-25 04:33:14.626551 Epoch [007/180], Step [0320/0750], Total_loss: 1.7163 Loss1: 0.8465 Loss2: 0.8612
+2024-11-25 04:33:51.475378 Epoch [007/180], Step [0340/0750], Total_loss: 1.2727 Loss1: 0.6664 Loss2: 0.5986
+2024-11-25 04:34:28.117807 Epoch [007/180], Step [0360/0750], Total_loss: 1.6054 Loss1: 0.7912 Loss2: 0.7915
+2024-11-25 04:35:04.760654 Epoch [007/180], Step [0380/0750], Total_loss: 1.7500 Loss1: 0.8690 Loss2: 0.8706
+2024-11-25 04:35:41.544588 Epoch [007/180], Step [0400/0750], Total_loss: 1.5466 Loss1: 0.7827 Loss2: 0.7449
+2024-11-25 04:36:18.301317 Epoch [007/180], Step [0420/0750], Total_loss: 1.6740 Loss1: 0.8259 Loss2: 0.8371
+2024-11-25 04:36:55.115573 Epoch [007/180], Step [0440/0750], Total_loss: 1.9977 Loss1: 0.9326 Loss2: 1.0312
+2024-11-25 04:37:31.681774 Epoch [007/180], Step [0460/0750], Total_loss: 2.3751 Loss1: 1.0898 Loss2: 1.2645
+2024-11-25 04:38:08.520204 Epoch [007/180], Step [0480/0750], Total_loss: 1.5016 Loss1: 0.7188 Loss2: 0.7222
+2024-11-25 04:38:45.366475 Epoch [007/180], Step [0500/0750], Total_loss: 1.0572 Loss1: 0.5742 Loss2: 0.4369
+2024-11-25 04:39:22.031760 Epoch [007/180], Step [0520/0750], Total_loss: 1.7198 Loss1: 0.8472 Loss2: 0.8498
+2024-11-25 04:39:58.956191 Epoch [007/180], Step [0540/0750], Total_loss: 1.8147 Loss1: 0.8861 Loss2: 0.9115
+2024-11-25 04:40:36.058568 Epoch [007/180], Step [0560/0750], Total_loss: 1.5440 Loss1: 0.7555 Loss2: 0.7436
+2024-11-25 04:41:12.563436 Epoch [007/180], Step [0580/0750], Total_loss: 1.5612 Loss1: 0.7713 Loss2: 0.7646
+2024-11-25 04:41:48.869802 Epoch [007/180], Step [0600/0750], Total_loss: 1.4959 Loss1: 0.7566 Loss2: 0.7116
+2024-11-25 04:42:25.664925 Epoch [007/180], Step [0620/0750], Total_loss: 1.6964 Loss1: 0.8297 Loss2: 0.8465
+2024-11-25 04:43:02.406992 Epoch [007/180], Step [0640/0750], Total_loss: 1.5530 Loss1: 0.7630 Loss2: 0.7610
+2024-11-25 04:43:39.190917 Epoch [007/180], Step [0660/0750], Total_loss: 1.6056 Loss1: 0.7888 Loss2: 0.7851
+2024-11-25 04:44:16.120013 Epoch [007/180], Step [0680/0750], Total_loss: 1.4481 Loss1: 0.6847 Loss2: 0.6564
+2024-11-25 04:44:52.941160 Epoch [007/180], Step [0700/0750], Total_loss: 1.5346 Loss1: 0.7709 Loss2: 0.7391
+2024-11-25 04:45:29.744579 Epoch [007/180], Step [0720/0750], Total_loss: 1.4134 Loss1: 0.7082 Loss2: 0.6574
+2024-11-25 04:46:05.753961 Epoch [007/180], Step [0740/0750], Total_loss: 1.9946 Loss1: 0.9461 Loss2: 1.0341
+2024-11-25 04:46:24.505174 Epoch [007/180], Step [0750/0750], Total_loss: 1.6193 Loss1: 0.8004 Loss2: 0.7990
+Epoch: 7, MAE: 0.03028879004335188, bestMAE: 0.02966054327766183, bestEpoch: 6.
+2024-11-25 04:56:17.773342 Epoch [008/180], Step [0001/0750], Total_loss: 1.5319 Loss1: 0.7837 Loss2: 0.7482
+2024-11-25 04:56:52.682336 Epoch [008/180], Step [0020/0750], Total_loss: 1.5221 Loss1: 0.7756 Loss2: 0.7464
+2024-11-25 04:57:29.598762 Epoch [008/180], Step [0040/0750], Total_loss: 1.2178 Loss1: 0.6480 Loss2: 0.5696
+2024-11-25 04:58:06.518628 Epoch [008/180], Step [0060/0750], Total_loss: 1.2949 Loss1: 0.6781 Loss2: 0.6164
+2024-11-25 04:58:43.391252 Epoch [008/180], Step [0080/0750], Total_loss: 1.1402 Loss1: 0.6046 Loss2: 0.5339
+2024-11-25 04:59:20.434424 Epoch [008/180], Step [0100/0750], Total_loss: 1.3493 Loss1: 0.6981 Loss2: 0.6495
+2024-11-25 04:59:57.080497 Epoch [008/180], Step [0120/0750], Total_loss: 1.4109 Loss1: 0.7291 Loss2: 0.6786
+2024-11-25 05:00:33.730294 Epoch [008/180], Step [0140/0750], Total_loss: 1.6041 Loss1: 0.8102 Loss2: 0.7927
+2024-11-25 05:01:10.434071 Epoch [008/180], Step [0160/0750], Total_loss: 1.3563 Loss1: 0.6906 Loss2: 0.6633
+2024-11-25 05:01:47.225462 Epoch [008/180], Step [0180/0750], Total_loss: 1.8578 Loss1: 0.9140 Loss2: 0.9430
+2024-11-25 05:02:24.257169 Epoch [008/180], Step [0200/0750], Total_loss: 1.3682 Loss1: 0.6887 Loss2: 0.6725
+2024-11-25 05:03:01.247211 Epoch [008/180], Step [0220/0750], Total_loss: 1.7021 Loss1: 0.8445 Loss2: 0.8486
+2024-11-25 05:03:38.060067 Epoch [008/180], Step [0240/0750], Total_loss: 1.5265 Loss1: 0.7656 Loss2: 0.7460
+2024-11-25 05:04:14.942735 Epoch [008/180], Step [0260/0750], Total_loss: 1.3471 Loss1: 0.7009 Loss2: 0.6372
+2024-11-25 05:04:51.792296 Epoch [008/180], Step [0280/0750], Total_loss: 1.4700 Loss1: 0.7328 Loss2: 0.7133
+2024-11-25 05:05:28.658286 Epoch [008/180], Step [0300/0750], Total_loss: 1.5468 Loss1: 0.7690 Loss2: 0.7649
+2024-11-25 05:06:05.410481 Epoch [008/180], Step [0320/0750], Total_loss: 1.4264 Loss1: 0.7408 Loss2: 0.6707
+2024-11-25 05:06:42.173075 Epoch [008/180], Step [0340/0750], Total_loss: 1.5522 Loss1: 0.7491 Loss2: 0.7641
+Traceback (most recent call last):
+  File "/workspace/CODlab/FSEL/SSM-based-COD/FSEL_ECCV_2024/Train.py", line 232, in <module>
+    train(train_loader, model, optimizer, epoch, save_path, writer)
+  File "/workspace/CODlab/FSEL/SSM-based-COD/FSEL_ECCV_2024/Train.py", line 54, in train
+    preds = model(images)
+  File "/opt/conda/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/opt/conda/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/opt/conda/lib/python3.10/site-packages/torch/nn/parallel/data_parallel.py", line 185, in forward
+    outputs = self.parallel_apply(replicas, inputs, module_kwargs)
+  File "/opt/conda/lib/python3.10/site-packages/torch/nn/parallel/data_parallel.py", line 200, in parallel_apply
+    return parallel_apply(replicas, inputs, kwargs, self.device_ids[:len(replicas)])
+  File "/opt/conda/lib/python3.10/site-packages/torch/nn/parallel/parallel_apply.py", line 100, in parallel_apply
+    thread.join()
+  File "/opt/conda/lib/python3.10/threading.py", line 1096, in join
+    self._wait_for_tstate_lock()
+  File "/opt/conda/lib/python3.10/threading.py", line 1116, in _wait_for_tstate_lock
+    if lock.acquire(block, timeout):
+  File "/opt/conda/lib/python3.10/site-packages/torch/utils/data/_utils/signal_handling.py", line 66, in handler
+    _error_if_any_worker_fails()
+RuntimeError: DataLoader worker (pid 122736) is killed by signal: Killed. 
