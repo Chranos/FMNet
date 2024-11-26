@@ -25,6 +25,7 @@ NEG_INF = -1000000
 
 device_id0 = 'cuda:0'
 device_id1 = 'cuda:1'
+device_id2 = 'cuda:2'
 
 def to_3d(x):
     return rearrange(x, 'b c h w -> b (h w) c')
@@ -416,6 +417,7 @@ class SS2D(nn.Module):
         if self.dropout is not None:
             out = self.dropout(out)
         return out
+    
 
 class SS2D_local(nn.Module):
     def __init__(
@@ -581,9 +583,17 @@ class SS2D_local(nn.Module):
         xs = torch.stack([x1,x2,x3,x4],dim=1)
         # x_hwwh = torch.stack([x.view(B, -1, L), torch.transpose(x, dim0=2, dim1=3).contiguous().view(B, -1, L)], dim=1).view(B, 2, -1, L)
         # xs = torch.cat([x_hwwh, torch.flip(x_hwwh, dims=[-1])], dim=1) # (1, 4, 192, 3136)
-        x_dbl = torch.einsum("b k d l, k c d -> b k c l", xs.view(B, K, -1, L), self.x_proj_weight)
+
+        # 修正 L 的计算
+        actual_L = xs.numel() // (B * K )
+        tepxs = xs.view(B, K, -1, actual_L)
+
+        x_dbl = torch.einsum("b k d l, k c d -> b k c l", tepxs, self.x_proj_weight)
         dts, Bs, Cs = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=2)
-        dts = torch.einsum("b k r l, k d r -> b k d l", dts.view(B, K, -1, L), self.dt_projs_weight)
+        
+        expected_L = dts.numel() // (B * K)
+        tepdts = dts.view(B, K, -1, expected_L)
+        dts = torch.einsum("b k r l, k d r -> b k d l", tepdts, self.dt_projs_weight)
 
         xs = xs.float().view(B, -1, L)
         dts = dts.contiguous().float().view(B, -1, L) # (b, k * d, l)
@@ -675,6 +685,7 @@ class FSFMB(nn.Module):
             d_state: int = 16,
             expand: float = 2.,
             LayerNorm_type = 'WithBias',
+            H_W: float = 416,
             **kwargs,
     ):
         super().__init__()
@@ -689,6 +700,8 @@ class FSFMB(nn.Module):
         self.drop_path1 = DropPath(drop_path)
         self.skip_scale1= nn.Parameter(torch.ones(hidden_dim))
 
+        self.xfm = DWTForward(J=2, mode='zero', wave='haar')
+        self.ifm = DWTInverse(mode='zero', wave='haar')
         # self.conv_blk = CAB(hidden_dim)
         # self.ln_2 = nn.LayerNorm(hidden_dim)
         # self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
@@ -717,6 +730,7 @@ class FSFMB(nn.Module):
         # self.linear_out = nn.Linear(hidden_dim * 3,hidden_dim)
         self.conv1 = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
         self.project_out = nn.Conv2d(hidden_dim * 2, out_channel, kernel_size=1, bias=False)
+        self.mkh = nn.Parameter(torch.zeros(torch.Size([3,hidden_dim,H_W,H_W])))
 
     def forward(self, input):
         # x [B,HW,C]
@@ -726,15 +740,15 @@ class FSFMB(nn.Module):
 
         # prepare = rearrange(input, "b h w c -> b c h w").contiguous().cuda(device_id0)
         prepare = self.norm1(input)
-        xfm = DWTForward(J=2, mode='zero', wave='haar').cuda(device_id0)
-        ifm = DWTInverse(mode='zero', wave='haar').cuda(device_id0)
 
         # # time1 = time.time()
         # # print(time1 - time0,'prepare')
-        Yl, Yh = xfm(prepare)
+        Yl, Yh = self.xfm(prepare)
         # # ttime = time.time()
         # # print(ttime - time0,'wave done')
+        # print(prepare.shape)
         h00 = torch.zeros(prepare.shape).float().cuda(device_id0)
+       # h00 = self.mkh.expand(prepare.shape).float().clone()
         # h00 = self.ln_11(h00)
         for i in range(len(Yh)):
           if i == len(Yh) - 1:
@@ -758,8 +772,8 @@ class FSFMB(nn.Module):
         # h11 = self.ln_11(h00)
         # # # print(h11.shape,'h11shape')
         # h11 = h00*self.skip_scale1 + self.drop_path1(self.self_attention1(h11))
-
-        h11 = self.drop_path1(self.self_attention1(h00))
+    #    print(f"h00 shape: {h00.shape}")
+        h11 = self.drop_path1(self.self_attention(h00))
 
         # # time3 = time.time()
         # # print(time3 - time2,'wavelet scan')
@@ -776,21 +790,33 @@ class FSFMB(nn.Module):
             Yh[i][:, :, 1, :h11.shape[2] - Yh[i].size(3), :] = h11[:, :, Yh[i].size(3):, :Yh[i].size(4)] 
             Yh[i][:, :, 2, :h11.shape[2] - Yh[i].size(3), :h11.shape[3] - Yh[i].size(4)] = h11[:, :, Yh[i].size(3):, Yh[i].size(4):] 
         # print(Yl,Yh[1])
-        Yl = Yl.cuda(device_id0)
-        temp = ifm((Yl, [Yh[1]]))
-        recons2 = ifm((temp, [Yh[0]])).cuda(device_id0)
+        Yl = Yl
+        temp = self.ifm((Yl, [Yh[1]]))
+        recons2 = self.ifm((temp, [Yh[0]]))
         # recons2 = rearrange(recons2, "b c h w -> b h w c").contiguous()
         # # time4 = time.time()
         # # print(time4 - time3,'inverse wavelet')
 
         # h22 = self.ln_11(h00)
         # # print(h11.shape,'h11shape')
-        recons2 = input*self.skip_scale1 + recons2
 
+        if input.shape != recons2.shape:
+            recons2 = recons2[:,:,:input.shape[2],:input.shape[3]]
+
+
+        
+
+        recons2 = input + recons2
+
+        
 
         x = self.norm1(input)
         # print(x.shape,'xshape')
-        x = input*self.skip_scale + self.drop_path(self.self_attention(self.conv1(x)))
+        x = self.conv1(x)
+        x = rearrange(x, "b c h w -> b h w c").contiguous()
+        x = self.drop_path(self.self_attention(x))
+        x = rearrange(x, "b h w c -> b c h w").contiguous()
+        x = input + x
         # time5 = time.time()
         # print(time5 - time4,'2D Scan')
 

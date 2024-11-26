@@ -23,6 +23,7 @@ class Network(nn.Module):
         self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-B-1K", trust_remote_code=True)
         
         base_d_state = 4
+        base_H_W = 13
         # self.dePixelShuffle = torch.nn.PixelShuffle(2)
 
         # self.up = nn.Sequential(
@@ -51,21 +52,25 @@ class Network(nn.Module):
                 hidden_dim=int(1024+channels),
                 out_channel=channels,
                 norm_layer=nn.LayerNorm,
+                H_W = base_H_W,
             )
         self.FSFMB_4 = FSFMB(
                 hidden_dim=int(512+channels),
                 out_channel=channels,
                 norm_layer=nn.LayerNorm,
+                H_W = base_H_W*2,
             )
         self.FSFMB_3 = FSFMB(
                 hidden_dim=int(256+channels),
                 out_channel=channels,
                 norm_layer=nn.LayerNorm,
+                H_W = base_H_W*4,
             )
         self.FSFMB_2 = FSFMB(
                 hidden_dim=int(128+channels),
                 out_channel=channels,
                 norm_layer=nn.LayerNorm,
+                H_W = base_H_W*8,
             )
 
         # self.ETB_5 = ETB(1024+channels, channels)
