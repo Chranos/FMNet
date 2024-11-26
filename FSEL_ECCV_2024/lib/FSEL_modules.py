@@ -233,24 +233,6 @@ class Module1(nn.Module):
         return x
 
 
-class ETB(nn.Module): # ETB (Entanglement Transformer Block)
-    def __init__(self, in_channel, out_channel):
-        super(ETB, self).__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(in_channel, out_channel, 1), nn.BatchNorm2d(out_channel),nn.ReLU(True)
-        )
-        self.reduce  = nn.Sequential(
-            nn.Conv2d(out_channel*2, out_channel, 1),nn.BatchNorm2d(out_channel),nn.ReLU(True)
-        )
-        self.relu = nn.ReLU(True)
-        self.Module1 = Module1(dim=out_channel)
-
-    def forward(self, x):
-        x0 = self.conv1(x)
-        x_FT = self.Module1(x0)
-        x    = self.reduce(torch.cat((x0,x_FT),1))+x0
-        return x
-
 
 
 class SS2D(nn.Module):
@@ -508,6 +490,29 @@ class SS2D_local(nn.Module):
         self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=bias, **factory_kwargs)
         self.dropout = nn.Dropout(dropout) if dropout > 0. else None
 
+    def local_scan(self,x: torch.Tensor, H=14, W=14, w=7, flip=False, column_first=False):
+      """Local windowed scan in LocalMamba
+      Input: 
+          x: [B, C, H, W]
+          H, W: original width and height
+          column_first: column-wise scan first (the additional direction in VMamba)
+      Return: [B, C, L]
+      """
+      B, C, _, _ = x.shape
+      x = x.view(B, C, H, W)
+      Hg, Wg = math.floor(H / w), math.floor(W / w)
+      if H % w != 0 or W % w != 0:
+          newH, newW = Hg * w, Wg * w
+          x = x[:,:,:newH,:newW]
+      if column_first:
+          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 4, 2, 5, 3).reshape(B, C, -1)
+      else:
+          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 2, 4, 3, 5).reshape(B, C, -1)
+      if flip:
+          x = x.flip([-1])
+      return x
+
+
     @staticmethod
     def dt_init(dt_rank, d_inner, dt_scale=1.0, dt_init="random", dt_min=0.001, dt_max=0.1, dt_init_floor=1e-4,
                 **factory_kwargs):
@@ -564,35 +569,15 @@ class SS2D_local(nn.Module):
         D = nn.Parameter(D)  # Keep in fp32
         D._no_weight_decay = True
         return D
-    def local_scan(x, H=14, W=14, w=7, flip=False, column_first=False):
-      """Local windowed scan in LocalMamba
-      Input: 
-          x: [B, C, H, W]
-          H, W: original width and height
-          column_first: column-wise scan first (the additional direction in VMamba)
-      Return: [B, C, L]
-      """
-      B, C, _, _ = x.shape
-      x = x.view(B, C, H, W)
-      Hg, Wg = math.floor(H / w), math.floor(W / w)
-      if H % w != 0 or W % w != 0:
-          newH, newW = Hg * w, Wg * w
-          x = x[:,:,:newH,:newW]
-      if column_first:
-          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 4, 2, 5, 3).reshape(B, C, -1)
-      else:
-          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 2, 4, 3, 5).reshape(B, C, -1)
-      if flip:
-          x = x.flip([-1])
-      return x
+    
     def forward_core(self, x: torch.Tensor):
         B, C, H, W = x.shape
         L = H * W
         K = 4
-        x1 = self.local_scan(x, H, W, w=H//4)
-        x2 = self.local_scan(x, H, W, w=H//4, column_first = True)
-        x3 = self.local_scan(x, H, W, w=H//4, flip=True)
-        x4 = self.local_scan(x, H, W, w=H//4, column_first = True, flip=True)
+        x1 = self.local_scan(x=x, H=H, W=W, w=H//4)
+        x2 = self.local_scan(x=x, H=H, W=W, w=H//4, flip=False, column_first = True)
+        x3 = self.local_scan(x=x, H=H, W=W, w=H//4,flip =  True)
+        x4 = self.local_scan(x=x, H=H, W=W, w=H//4,flip = True,column_first =  True)
         xs = torch.stack([x1,x2,x3,x4],dim=1)
         # x_hwwh = torch.stack([x.view(B, -1, L), torch.transpose(x, dim0=2, dim1=3).contiguous().view(B, -1, L)], dim=1).view(B, 2, -1, L)
         # xs = torch.cat([x_hwwh, torch.flip(x_hwwh, dims=[-1])], dim=1) # (1, 4, 192, 3136)
@@ -679,19 +664,22 @@ class ChannelAttention(nn.Module):
 
 
 
-class VSSBlock(nn.Module):
+class FSFMB(nn.Module):
     def __init__(
             self,
             hidden_dim: int = 0,
+            out_channel: int = 0,
             drop_path: float = 0,
             norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
             attn_drop_rate: float = 0,
             d_state: int = 16,
             expand: float = 2.,
+            LayerNorm_type = 'WithBias',
             **kwargs,
     ):
         super().__init__()
         self.ln_1 = norm_layer(hidden_dim)
+        self.norm1 = LayerNorm(hidden_dim, LayerNorm_type)
         self.self_attention = SS2D(d_model=hidden_dim, d_state=d_state,expand=expand,dropout=attn_drop_rate, **kwargs)
         self.drop_path = DropPath(drop_path)
         self.skip_scale= nn.Parameter(torch.ones(hidden_dim))
@@ -701,21 +689,23 @@ class VSSBlock(nn.Module):
         self.drop_path1 = DropPath(drop_path)
         self.skip_scale1= nn.Parameter(torch.ones(hidden_dim))
 
-        self.conv_blk = CAB(hidden_dim)
-        self.ln_2 = nn.LayerNorm(hidden_dim)
-        self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
+        # self.conv_blk = CAB(hidden_dim)
+        # self.ln_2 = nn.LayerNorm(hidden_dim)
+        # self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
 
 
         # self.fpre = nn.Conv2d(hidden_dim, hidden_dim, 1, 1, 0)
 
 
-        self.block = nn.Sequential(
-            nn.Conv2d(hidden_dim,hidden_dim,1,1,0),
-            nn.LeakyReLU(0.1,inplace=True),
-            nn.Conv2d(hidden_dim, hidden_dim, 1, 1, 0),
-            nn.LeakyReLU(0.1, inplace=True))
+        # self.block = nn.Sequential(
+        #     nn.Conv2d(hidden_dim,hidden_dim,1,1,0),
+        #     nn.LeakyReLU(0.1,inplace=True),
+        #     nn.Conv2d(hidden_dim, hidden_dim, 1, 1, 0),
+        #     nn.LeakyReLU(0.1, inplace=True))
         
-
+        # self.conv1 = nn.Sequential(
+        #     nn.Conv2d(hidden_dim, out_channel, 1), nn.BatchNorm2d(out_channel),nn.ReLU(True)
+        # )
         # self.fpre1 = nn.Conv2d(hidden_dim, hidden_dim, 1, 1, 0)
         # self.block1 = nn.Sequential(
         #     nn.Conv2d(hidden_dim,hidden_dim,1,1,0),
@@ -724,15 +714,18 @@ class VSSBlock(nn.Module):
         #     nn.LeakyReLU(0.1, inplace=True))
         # self.linear1 = nn.Linear(hidden_dim,hidden_dim)
         # self.linear2 = nn.Linear(hidden_dim,hidden_dim)
-        self.linear_out = nn.Linear(hidden_dim * 3,hidden_dim)
+        # self.linear_out = nn.Linear(hidden_dim * 3,hidden_dim)
+        self.conv1 = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
+        self.project_out = nn.Conv2d(hidden_dim * 2, out_channel, kernel_size=1, bias=False)
 
-    def forward(self, input, x_size):
+    def forward(self, input):
         # x [B,HW,C]
-        B, L, C = input.shape
-        input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
+        # B, C, H, W = input.shape
+        # input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
         # time0 = time.time()
 
-        prepare = rearrange(input, "b h w c -> b c h w").contiguous().cuda(device_id0)
+        # prepare = rearrange(input, "b h w c -> b c h w").contiguous().cuda(device_id0)
+        prepare = self.norm1(input)
         xfm = DWTForward(J=2, mode='zero', wave='haar').cuda(device_id0)
         ifm = DWTInverse(mode='zero', wave='haar').cuda(device_id0)
 
@@ -742,6 +735,7 @@ class VSSBlock(nn.Module):
         # # ttime = time.time()
         # # print(ttime - time0,'wave done')
         h00 = torch.zeros(prepare.shape).float().cuda(device_id0)
+        # h00 = self.ln_11(h00)
         for i in range(len(Yh)):
           if i == len(Yh) - 1:
             h00[:, :, :Yl.size(2), :Yl.size(3)] = Yl
@@ -761,9 +755,11 @@ class VSSBlock(nn.Module):
         # # print(h00)
         # # time2 = time.time()
         # # print(time2 - time1,'wavelet')
-        h11 = self.ln_11(h00)
-        # # print(h11.shape,'h11shape')
-        h11 = h00*self.skip_scale1 + self.drop_path1(self.self_attention1(h11))
+        # h11 = self.ln_11(h00)
+        # # # print(h11.shape,'h11shape')
+        # h11 = h00*self.skip_scale1 + self.drop_path1(self.self_attention1(h11))
+
+        h11 = self.drop_path1(self.self_attention1(h00))
 
         # # time3 = time.time()
         # # print(time3 - time2,'wavelet scan')
@@ -783,28 +779,31 @@ class VSSBlock(nn.Module):
         Yl = Yl.cuda(device_id0)
         temp = ifm((Yl, [Yh[1]]))
         recons2 = ifm((temp, [Yh[0]])).cuda(device_id0)
-        recons2 = rearrange(recons2, "b c h w -> b h w c").contiguous()
+        # recons2 = rearrange(recons2, "b c h w -> b h w c").contiguous()
         # # time4 = time.time()
         # # print(time4 - time3,'inverse wavelet')
 
+        # h22 = self.ln_11(h00)
+        # # print(h11.shape,'h11shape')
+        recons2 = input*self.skip_scale1 + recons2
 
 
-        x = self.ln_1(input)
+        x = self.norm1(input)
         # print(x.shape,'xshape')
-        x = input*self.skip_scale + self.drop_path(self.self_attention(x))
+        x = input*self.skip_scale + self.drop_path(self.self_attention(self.conv1(x)))
         # time5 = time.time()
         # print(time5 - time4,'2D Scan')
 
-        input_freq = torch.fft.rfft2(prepare)+1e-8
-        mag = torch.abs(input_freq)
-        pha = torch.angle(input_freq)
-        mag = self.block(mag)
-        real = mag * torch.cos(pha)
-        imag = mag * torch.sin(pha)
-        x_out = torch.complex(real, imag)+1e-8
-        x_out = torch.fft.irfft2(x_out, s= tuple(x_size), norm='backward')+1e-8
-        x_out = torch.abs(x_out)+1e-8
-        x_out = rearrange(x_out, "b c h w -> b h w c").contiguous()
+        # input_freq = torch.fft.rfft2(prepare)+1e-8
+        # mag = torch.abs(input_freq)
+        # pha = torch.angle(input_freq)
+        # mag = self.block(mag)
+        # real = mag * torch.cos(pha)
+        # imag = mag * torch.sin(pha)
+        # x_out = torch.complex(real, imag)+1e-8
+        # x_out = torch.fft.irfft2(x_out, s= tuple(x_size), norm='backward')+1e-8
+        # x_out = torch.abs(x_out)+1e-8
+        # x_out = rearrange(x_out, "b c h w -> b h w c").contiguous()
 
         
         # x = x*self.skip_scale2 + self.conv_blk(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
@@ -826,22 +825,23 @@ class VSSBlock(nn.Module):
         # x2 = self.ln_11(x1)
         # x2 = x1*self.skip_scale1 + self.drop_path1(self.self_attention1(x2))
 
-        x = x.view(B, -1, C).contiguous()
-        x_out = x_out.view(B, -1, C).contiguous()
+        # x = x.view(B, -1, C).contiguous()
+        # x_out = x_out.view(B, -1, C).contiguous()
 
         # wave trans
-        x_dwt = recons2.view(B, -1, C).contiguous()
+        # x_dwt = recons2.view(B, -1, C).contiguous()
+        x_dwt = recons2
         
         # # print(x.shape,x_dwt.shape)
         
 
         # wave trans. The shapes may not match slightly due to the wavelet transform
         if x.shape != x_dwt.shape:
-            x_dwt = x_dwt[:,:x.shape[1],:]
+            x_dwt = x_dwt[:,:,:x.shape[2],:x.shape[3]]
 
         # # wave trans
-        x_final = torch.cat((x,x_out,x_dwt),2)
-        x_final = self.linear_out(x_final)
+        x_final = torch.cat((x,x_dwt),1)
+        x_final = self.project_out(x_final)
 
 
         # time6 = time.time()
@@ -853,6 +853,24 @@ class VSSBlock(nn.Module):
 
 
 
+
+class ETB(nn.Module): # ETB (Entanglement Transformer Block)
+    def __init__(self, in_channel, out_channel):
+        super(ETB, self).__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channel, out_channel, 1), nn.BatchNorm2d(out_channel),nn.ReLU(True)
+        )
+        self.reduce  = nn.Sequential(
+            nn.Conv2d(out_channel*2, out_channel, 1),nn.BatchNorm2d(out_channel),nn.ReLU(True)
+        )
+        self.relu = nn.ReLU(True)
+        self.Module1 = Module1(dim=out_channel)
+
+    def forward(self, x):
+        x0 = self.conv1(x)
+        x_FT = self.Module1(x0)
+        x    = self.reduce(torch.cat((x0,x_FT),1))+x0
+        return x
 
 
 

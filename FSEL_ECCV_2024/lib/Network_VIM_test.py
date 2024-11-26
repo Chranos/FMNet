@@ -21,8 +21,8 @@ class Network(nn.Module):
         super(Network, self).__init__()
        # self.shared_encoder = timm.create_model(model_name="resnet50", pretrained=False, in_chans=3, features_only=True)
         self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-B-1K", trust_remote_code=True)
-
-
+        
+        base_d_state = 4
         # self.dePixelShuffle = torch.nn.PixelShuffle(2)
 
         # self.up = nn.Sequential(
@@ -60,6 +60,7 @@ class Network(nn.Module):
 
     def forward(self, x):
         image = x
+        _, _, H, W = image.shape
         # Feature Extraction
         # en_feats = self.shared_encoder(x)
         # # eval mode for inference

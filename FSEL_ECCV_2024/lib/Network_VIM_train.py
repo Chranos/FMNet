@@ -3,7 +3,7 @@ import timm
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, ETB , PFAFM
+from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, ETB , PFAFM , FSFMB
 from transformers import AutoModel
 from PIL import Image
 from timm.data.transforms_factory import create_transform
@@ -22,7 +22,7 @@ class Network(nn.Module):
        # self.shared_encoder = timm.create_model(model_name="resnet50", pretrained=False, in_chans=3, features_only=True)
         self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-B-1K", trust_remote_code=True)
         
-
+        base_d_state = 4
         # self.dePixelShuffle = torch.nn.PixelShuffle(2)
 
         # self.up = nn.Sequential(
@@ -47,10 +47,31 @@ class Network(nn.Module):
             nn.Conv2d(channels, channels, kernel_size=3, padding=1),nn.BatchNorm2d(channels),nn.ReLU(True)
         )
 
-        self.ETB_5 = ETB(1024+channels, channels)
-        self.ETB_4 = ETB(512+channels, channels)
-        self.ETB_3 = ETB(256+channels, channels)
-        self.ETB_2 = ETB(128+channels, channels)
+        self.FSFMB_5 = FSFMB(
+                hidden_dim=int(1024+channels),
+                out_channel=channels,
+                norm_layer=nn.LayerNorm,
+            )
+        self.FSFMB_4 = FSFMB(
+                hidden_dim=int(512+channels),
+                out_channel=channels,
+                norm_layer=nn.LayerNorm,
+            )
+        self.FSFMB_3 = FSFMB(
+                hidden_dim=int(256+channels),
+                out_channel=channels,
+                norm_layer=nn.LayerNorm,
+            )
+        self.FSFMB_2 = FSFMB(
+                hidden_dim=int(128+channels),
+                out_channel=channels,
+                norm_layer=nn.LayerNorm,
+            )
+
+        # self.ETB_5 = ETB(1024+channels, channels)
+        # self.ETB_4 = ETB(512+channels, channels)
+        # self.ETB_3 = ETB(256+channels, channels)
+        # self.ETB_2 = ETB(128+channels, channels)
 
         self.PFAFM = PFAFM(1024, channels)
 
@@ -61,6 +82,7 @@ class Network(nn.Module):
 
     def forward(self, x):
         image = x
+        _, _, H, W = image.shape
         # Feature Extraction
         # en_feats = self.shared_encoder(x)
         # # eval mode for inference
@@ -91,17 +113,17 @@ class Network(nn.Module):
         x5_4 = p1
         x5_4_1 = x5_4.expand(-1, 128, -1, -1)
 
-        x4   = self.ETB_5(torch.cat((x4,x5_4_1),1))
+        x4   = self.FSFMB_5(torch.cat((x4,x5_4_1),1))
         x4_up = self.up(self.dePixelShuffle(x4))
 
-        x3   = self.ETB_4(torch.cat((x3,x4_up),1))
+        x3   = self.FSFMB_4(torch.cat((x3,x4_up),1))
         x3_up = self.up(self.dePixelShuffle(x3))
 
-        x2   = self.ETB_3(torch.cat((x2,x3_up),1))
+        x2   = self.FSFMB_3(torch.cat((x2,x3_up),1))
         x2_up = self.up(self.dePixelShuffle(x2))
 
 
-        x1   = self.ETB_2(torch.cat((x1,x2_up),1))
+        x1   = self.FSFMB_2(torch.cat((x1,x2_up),1))
 
 
         x4 = self.DRP_1(x4,x5_4)
