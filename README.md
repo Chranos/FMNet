@@ -16,7 +16,7 @@ cd ..
 
 
 ```shell
-nohup python Train.py --train_root /workspace/CODlab/data/datasets/COD10K_train/train/ --val_root /workspace/CODlab/data/datasets/COD10K_train/test/ --save_path /workspace/CODlab/Pths/result/ADD_FSFMB/ > Baseline.log 2>&1 &
+nohup python Train.py --train_root /workspace/codlab/datasets/COD10K-v3/Train/ --val_root /workspace/codlab/datasets/COD10K-v3/Test/ --save_path /workspace/codlab/result/Pths/ADD_FSFMB/ > Baseline.log 2>&1 &
 ```
 
  # TEST
