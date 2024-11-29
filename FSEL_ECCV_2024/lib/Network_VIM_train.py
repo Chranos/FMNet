@@ -3,7 +3,7 @@ import timm
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, ETB , PFAFM , FSFMB
+from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, ETB , PFAFM , FSFMB, DRD_1, DRD_2, DRD_3
 from transformers import AutoModel
 from PIL import Image
 from timm.data.transforms_factory import create_transform
@@ -80,9 +80,13 @@ class Network(nn.Module):
 
         self.PFAFM = PFAFM(1024, channels)
 
-        self.DRP_1 = DRP_1(channels, channels)
-        self.DRP_2 = DRP_2(channels, channels)
-        self.DRP_3 = DRP_3(channels,channels)
+        # self.DRP_1 = DRP_1(channels, channels)
+        # self.DRP_2 = DRP_2(channels, channels)
+        # self.DRP_3 = DRP_3(channels,channels)
+
+        self.DRD_1 = DRD_1(channels, channels)
+        self.DRD_2 = DRD_2(channels, channels)
+        self.DRD_3 = DRD_3(channels,channels)
 
 
     def forward(self, x):
@@ -131,10 +135,10 @@ class Network(nn.Module):
         x1   = self.FSFMB_2(torch.cat((x1,x2_up),1))
 
 
-        x4 = self.DRP_1(x4,x5_4)
-        x3 = self.DRP_1(x3,x4)
-        x2 = self.DRP_2(x2,x3,x4)
-        x1 = self.DRP_3(x1,x2,x3,x4)
+        x4 = self.DRD_1(x4,x5_4)
+        x3 = self.DRD_1(x3,x4)
+        x2 = self.DRD_2(x2,x3,x4)
+        x1 = self.DRD_3(x1,x2,x3,x4)
 
 
         p0 = F.interpolate(p1, size=image.size()[2:], mode='bilinear', align_corners=True)

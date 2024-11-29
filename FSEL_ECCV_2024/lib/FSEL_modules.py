@@ -266,7 +266,6 @@ class SS2D_F(nn.Module):
         self.dt_rank = math.ceil(self.d_model / 16) if dt_rank == "auto" else dt_rank
 
         self.in_proj = nn.Linear(self.d_model, self.d_inner * 2, bias=bias, **factory_kwargs)
-         
         self.conv2d = nn.Conv2d(
             in_channels=self.d_inner,
             out_channels=self.d_inner,
@@ -309,6 +308,28 @@ class SS2D_F(nn.Module):
         self.out_norm = nn.LayerNorm(self.d_inner)
         self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=bias, **factory_kwargs)
         self.dropout = nn.Dropout(dropout) if dropout > 0. else None
+
+    def local_scan(x, H=14, W=14, w=7, flip=False, column_first=False):
+      """Local windowed scan in LocalMamba
+      Input: 
+          x: [B, C, H, W]
+          H, W: original width and height
+          column_first: column-wise scan first (the additional direction in VMamba)
+      Return: [B, C, L]
+      """
+      B, C, _, _ = x.shape
+      x = x.view(B, C, H, W)
+      Hg, Wg = math.floor(H / w), math.floor(W / w)
+      if H % w != 0 or W % w != 0:
+          newH, newW = Hg * w, Wg * w
+          x = x[:,:,:newH,:newW]
+      if column_first:
+          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 4, 2, 5, 3).reshape(B, C, -1)
+      else:
+          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 2, 4, 3, 5).reshape(B, C, -1)
+      if flip:
+          x = x.flip([-1])
+      return x
 
     @staticmethod
     def dt_init(dt_rank, d_inner, dt_scale=1.0, dt_init="random", dt_min=0.001, dt_max=0.1, dt_init_floor=1e-4,
@@ -366,13 +387,16 @@ class SS2D_F(nn.Module):
         D = nn.Parameter(D)  # Keep in fp32
         D._no_weight_decay = True
         return D
-
+    
     def forward_core(self, x: torch.Tensor):
         B, C, H, W = x.shape
         L = H * W
         K = 4
+        x1 = self.local_scan(x, H, W, w=H//4)
+        x2 = self.local_scan(x, H, W, w=H//4, column_first = True)
 
-        x_hwwh = torch.stack([x.view(B, -1, L), torch.transpose(x, dim0=2, dim1=3).contiguous().view(B, -1, L)], dim=1).view(B, 2, -1, L)
+        x_hwwh = torch.stack([x1,x2],dim=1).view(B, 2, -1, L)
+        # x_hwwh = torch.stack([x.view(B, -1, L), torch.transpose(x, dim0=2, dim1=3).contiguous().view(B, -1, L)], dim=1).view(B, 2, -1, L)
         xs = torch.cat([x_hwwh, torch.flip(x_hwwh, dims=[-1])], dim=1) # (1, 4, 192, 3136)
         x_dbl = torch.einsum("b k d l, k c d -> b k c l", xs.view(B, K, -1, L), self.x_proj_weight)
         dts, Bs, Cs = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=2)
@@ -418,7 +442,7 @@ class SS2D_F(nn.Module):
         if self.dropout is not None:
             out = self.dropout(out)
         return out
-    
+ 
 
 class SS2D(nn.Module):
     def __init__(
@@ -714,13 +738,16 @@ class FSFMB(nn.Module):
         expand_dim = hidden_dim * 2
         mlp_hidden_dim = int(hidden_dim * 2.)
 
-        self.mambascan_f = SS2D(d_model=hidden_dim, d_state=d_state,expand=expand,dropout=attn_drop_rate, **kwargs)
+        self.mambascan_f = SS2D_F(d_model=hidden_dim, d_state=d_state,expand=expand,dropout=attn_drop_rate, **kwargs)
         self.hybridgate = HybridGate(dim=hidden_dim, mlp_ratio=2.)
         self.mlp = Mlp(in_features=hidden_dim, hidden_features=mlp_hidden_dim, out_features=hidden_dim)
         self.ca = CAB(num_feat=hidden_dim)
 
         self.expand = nn.Conv2d(in_channels=hidden_dim, out_channels=expand_dim, kernel_size=1, padding=0, stride=1, bias=True)
 
+        self.ffn = FeedForward(hidden_dim, 4, False)
+        self.dwt = DWTForward(J=1, mode='zero', wave='haar')
+        self.idwt = DWTInverse(mode='zero', wave='haar')
 
         self.weight = nn.Sequential(
             nn.Conv2d(hidden_dim, hidden_dim // 16, 1, bias=True),
@@ -740,24 +767,155 @@ class FSFMB(nn.Module):
         self.project_out = nn.Conv2d(hidden_dim , out_channel, kernel_size=1, bias=False)
         self.mkh = nn.Parameter(torch.zeros(torch.Size([3,hidden_dim,H_W,H_W])))
 
+
+    def combine_subbands(self, Yl, Yh):
+        """
+        Combines the low-frequency and 3 high-frequency subbands into one region (4 blocks), 
+        forming a 2x2 subband structure.
+
+        Parameters:
+            Yl: Low-frequency subband, shape [B, C, H/2, W/2]
+            Yh: High-frequency subband list, containing 3 directions, shape [B, C, 3, H/2, W/2]
+
+        Returns:
+            region: Combined tensor, shape [B, C, H, W]
+        """
+        B, C, H, W = Yl.size(0), Yl.size(1), Yl.size(2), Yl.size(3)
+        Hh, Wh = Yh[0].size(3), Yh[0].size(4)
+
+
+        H_out, W_out = H + Hh, W + Wh
+        region = torch.zeros(B, C, H_out, W_out, device=Yl.device)  # Output region with 2x size
+
+        # Place the low-frequency subband in the top-left corner
+        region[:, :, :H, :W] = Yl
+
+        # Place the horizontal high-frequency subband in the top-right corner
+        region[:, :, :H, W:] = Yh[0][:, :, 0, :, :]
+
+        # Place the vertical high-frequency subband in the bottom-left corner
+        region[:, :, H:, :W] = Yh[0][:, :, 1, :, :]
+
+        # Place the diagonal high-frequency subband in the bottom-right corner
+        region[:, :, H:, W:] = Yh[0][:, :, 2, :, :]
+
+        return region
+    
+
+    def inverse_wavelet_transform(self, h00):
+        """
+        使用逆小波变换将两次分解后的子带还原为原始图像。
+
+        参数:
+            h00: 包含两次小波分解结果的张量，形状 [B, C, H, W]
+
+        返回:
+            recons: 重建后的原始图像，形状与分解前相同
+        """
+        # 提取分辨率信息
+        B, C, H, W = h00.shape
+        H2, W2 = H // 2, W // 2  # 第一次分解的子带高度和宽度
+        H4, W4 = H2 // 2, W2 // 2  # 第二次分解的子带高度和宽度
+
+        # 提取第二次分解的低频和高频子带
+        Yl2 = h00[:, :, :H4, :W4]  # 左上角：最低频子带
+        Yh_lf = torch.zeros(B, C, 3, H4, W4, device=h00.device)  # 第二次分解的高频子带
+        Yh_lf[:, :, 0, :, :] = h00[:, :, :H4, W4:W2]  # 水平高频
+        Yh_lf[:, :, 1, :, :] = h00[:, :, H4:H2, :W4]  # 垂直高频
+        Yh_lf[:, :, 2, :, :] = h00[:, :, H4:H2, W4:W2]  # 对角线高频
+
+        # 使用逆小波变换恢复第一次分解的低频部分
+        Yl = self.ifm((Yl2, [Yh_lf]))
+
+        # 提取第一次分解的高频子带
+        Yh_hf = torch.zeros(B, C, 3, H2, W2, device=h00.device)  # 第一次分解的高频子带
+
+        # 水平高频部分（两次分解）
+        Yh_hf_l2 = h00[:, :, :H4, W2:W2 + W4]  # 水平高频的第二次分解
+        Yh_hf_hf = torch.zeros(B, C, 3, H4, W4, device=h00.device)
+        Yh_hf_hf[:, :, 0, :, :] = h00[:, :, :H4, W2 + W4:]  # 水平的水平高频
+        Yh_hf_hf[:, :, 1, :, :] = h00[:, :, H4:H2, W2:W2 + W4]  # 水平的垂直高频
+        Yh_hf_hf[:, :, 2, :, :] = h00[:, :, H4:H2, W2 + W4:]  # 水平的对角线高频
+        Yh_hf[:, :, 0, :, :] = self.ifm((Yh_hf_l2, [Yh_hf_hf]))  # 恢复水平高频
+
+        # 垂直高频部分（两次分解）
+        Yh_vf_l2 = h00[:, :, H2:H2 + H4, :W4]  # 垂直高频的第二次分解
+        Yh_vf_hf = torch.zeros(B, C, 3, H4, W4, device=h00.device)
+        Yh_vf_hf[:, :, 0, :, :] = h00[:, :, H2:H2 + H4, W4:W2]  # 垂直的水平高频
+        Yh_vf_hf[:, :, 1, :, :] = h00[:, :, H2 + H4:, :W4]  # 垂直的垂直高频
+        Yh_vf_hf[:, :, 2, :, :] = h00[:, :, H2 + H4:, W4:W2]  # 垂直的对角线高频
+        Yh_hf[:, :, 1, :, :] = self.ifm((Yh_vf_l2, [Yh_vf_hf]))  # 恢复垂直高频
+
+        # 对角线高频部分（两次分解）
+        Yh_df_l2 = h00[:, :, H2:H2 + H4, W2:W2 + W4]  # 对角线高频的第二次分解
+        Yh_df_hf = torch.zeros(B, C, 3, H4, W4, device=h00.device)
+        Yh_df_hf[:, :, 0, :, :] = h00[:, :, H2:H2 + H4, W2 + W4:]  # 对角线的水平高频
+        Yh_df_hf[:, :, 1, :, :] = h00[:, :, H2 + H4:, W2:W2 + W4]  # 对角线的垂直高频
+        Yh_df_hf[:, :, 2, :, :] = h00[:, :, H2 + H4:, W2 + W4:]  # 对角线的对角线高频
+        Yh_hf[:, :, 2, :, :] = self.ifm((Yh_df_l2, [Yh_df_hf]))  # 恢复对角线高频
+
+        # 使用第一次分解的低频和高频子带恢复原始图像
+        recons = self.ifm((Yl, [Yh_hf]))
+
+        return recons
+    
+ 
+
     def forward(self, input):
 
         b, c, h, w = input.shape
 
-        prepare = self.norm1(input)
+        input = self.norm1(input)
 
-        x1 = prepare
-        x2 = prepare
+        x1 = input
+        x2 = input
 
-        f_x2 = torch.fft.fft2(x2.float())
-        x_2_res = torch.abs(torch.fft.ifft2(self.weight(f_x2.real)*f_x2))
+        # First wavelet decomposition
+        Yl, Yh = self.dwt(x2)  # Yl: First-level low-frequency, Yh[0]: First-level high-frequency
 
-        f_x2 = rearrange(f_x2, "b c h w -> b h w c").contiguous()
-        f_x2_o = self.drop_path(self.mambascan_f(f_x2.real))
-        f_x2_o = rearrange(f_x2_o, "b h w c -> b c h w").contiguous()
+        # Create the output tensor h00 with the same shape as the input x
+        h00 = torch.zeros_like(x2)
 
-        f_x2_o = torch.abs(torch.fft.ifft2(f_x2_o))
-        f_out = self.catout(torch.cat((f_x2_o,x_2_res),1))
+        # Perform another DWT on the first-level low-frequency Yl
+        Yl2, Yh_lf = self.dwt(Yl)
+        
+        # a = Yl.size(2) 
+        # b = Yl2.size(2)
+        # c = Yh_lf[0].size(3)
+        # print("a = " + str(Yl.size(2)) + "b = " + str(Yl2.size(2)) +"c = " + str(Yh_lf[0].size(3)))
+
+        h00[:, :, :Yl.size(2), :Yl.size(3)] = self.combine_subbands(Yl2, Yh_lf)
+
+        # Perform another DWT on the first-level horizontal high-frequency Yh[0][:, :, 0]
+        Yl_hf, Yh_hf = self.dwt(Yh[0][:, :, 0, :, :])
+
+        h00[:, :, :Yl.size(2), Yl.size(3):] = self.combine_subbands(Yl_hf, Yh_hf)
+
+        # Perform another DWT on the first-level vertical high-frequency Yh[0][:, :, 1]
+        Yl_vf, Yh_vf = self.dwt(Yh[0][:, :, 1, :, :])
+
+        h00[:, :, Yl.size(2):, :Yl.size(3)] = self.combine_subbands(Yl_vf, Yh_vf)
+
+        # Perform another DWT on the first-level diagonal high-frequency Yh[0][:, :, 2]
+        Yl_df, Yh_df = self.dwt(Yh[0][:, :, 2, :, :])
+
+        h00[:, :, Yl.size(2):, Yl.size(3):] = self.combine_subbands(Yl_df, Yh_df)
+
+        h00 = rearrange(h00, "b c h w -> b h w c").contiguous()
+        h11 = h00+ self.drop_path(self.mambascan_f(h00))
+        h11 = rearrange(h11, "b h w c -> b c h w").contiguous()
+
+        f_out = self.inverse_wavelet_transform(h00)
+
+        # f_x2 = torch.fft.fft2(x2.float())
+        # x_2_res = torch.abs(torch.fft.ifft2(self.weight(f_x2.real)*f_x2))
+
+        # f_x2 = rearrange(f_x2, "b c h w -> b h w c").contiguous()
+        # f_x2_o = self.drop_path(self.mambascan_f(f_x2.real))
+        # f_x2_o = rearrange(f_x2_o, "b h w c -> b c h w").contiguous()
+
+        # f_x2_o = torch.abs(torch.fft.ifft2(f_x2_o))
+        # f_out = self.catout(torch.cat((f_x2_o,x_2_res),1))
 
         s_x1 = rearrange(x1, "b c h w -> b h w c").contiguous()
         s_x1_o = self.drop_path(self.mambascan(s_x1))
@@ -864,7 +1022,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv2 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=2, padding=2), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=3, padding=3), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv2 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv2 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -873,7 +1031,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv3 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=4, padding=4), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=5, padding=5), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv3 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv3 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -882,7 +1040,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv4 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=6, padding=6), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=7, padding=7), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv4 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv4 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -1073,6 +1231,192 @@ class JDPM(nn.Module): # JDPM (Joint Domain Perception Module)
        F_out = self.out(self.reduce(torch.cat((F1_3,F1_5,F1_7,F1_9,F1_input),1)) + F1_input )
 
        return F_out
+
+
+
+
+class DRD_1(nn.Module): # DRP (Dual-domain Reverse Parser)
+    def __init__(self, in_channels, mid_channels):
+        super(DRD_1, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels * 2, in_channels, kernel_size=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels), nn.ReLU(True)
+        )
+
+        self.out = nn.Sequential(
+            nn.Conv2d(in_channels * 2, mid_channels, kernel_size=3, padding=1), nn.BatchNorm2d(mid_channels),nn.ReLU(True),
+            nn.Conv2d(mid_channels, 1, kernel_size=1)
+        )
+
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),nn.ReLU(True),
+        )
+
+        self.weight = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels // 16, 1, bias=True),
+            nn.BatchNorm2d(in_channels // 16),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels // 16, in_channels, 1, bias=True),
+            nn.Sigmoid())
+
+        self.norm = nn.BatchNorm2d(in_channels)
+        self.relu = nn.ReLU(in_channels)
+
+    def forward(self, X, prior_cam):
+        prior_cam = F.interpolate(prior_cam, size=X.size()[2:], mode='bilinear',align_corners=True)
+
+        FI  = X
+
+        yt = self.conv(torch.cat([FI, prior_cam.expand(-1, X.size()[1], -1, -1)], dim=1))
+
+        yt_s = self.conv3(yt)
+        yt_out = yt_s
+
+        r_prior_cam_f = torch.abs(torch.fft.fft2(prior_cam))
+        r_prior_cam_f = -1 * (torch.sigmoid(r_prior_cam_f)) + 1
+        r_prior_cam_s = -1 * (torch.sigmoid(prior_cam)) + 1
+        r_prior_cam = r_prior_cam_s + r_prior_cam_f
+
+        y_ra = r_prior_cam.expand(-1, X.size()[1], -1, -1).mul(FI)
+
+        out = torch.cat([y_ra, yt_out], dim=1)  # 2,128,48,48
+
+        y = self.out(out)
+        y = y + prior_cam
+        return y
+
+class DRD_2(nn.Module): # DRP (Dual-domain Reverse Parser)
+    def __init__(self, in_channels, mid_channels):
+        super(DRD_2, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels * 3, in_channels, kernel_size=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),nn.ReLU(True),
+        )
+
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),nn.ReLU(True),
+        )
+
+        self.out = nn.Sequential(
+            nn.Conv2d(in_channels * 2, mid_channels, kernel_size=3, padding=1), nn.BatchNorm2d(mid_channels),nn.ReLU(True),
+            nn.Conv2d(mid_channels, 1, kernel_size=1)
+        )
+
+        self.weight = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels // 16, 1, bias=True),
+            nn.BatchNorm2d(in_channels // 16),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels // 16, in_channels, 1, bias=True),
+            nn.Sigmoid())
+
+        self.norm = nn.BatchNorm2d(in_channels)
+        self.relu = nn.ReLU(True)
+
+    def forward(self, X, x1, prior_cam):
+        prior_cam = F.interpolate(prior_cam, size=X.size()[2:], mode='bilinear',align_corners=True)
+        x1_prior_cam = F.interpolate(x1, size=X.size()[2:], mode='bilinear', align_corners=True)
+        FI = X
+
+        yt = self.conv(torch.cat([FI, prior_cam.expand(-1, X.size()[1], -1, -1), x1_prior_cam.expand(-1, X.size()[1], -1, -1)],dim=1))
+
+        yt_s = self.conv3(yt)
+        yt_out = yt_s
+
+        r_prior_cam_f = torch.abs(torch.fft.fft2(prior_cam))
+        r_prior_cam_f = -1 * (torch.sigmoid(r_prior_cam_f)) + 1
+        r_prior_cam_s = -1 * (torch.sigmoid(prior_cam)) + 1
+        r_prior_cam = r_prior_cam_s + r_prior_cam_f
+
+        r1_prior_cam_f = torch.abs(torch.fft.fft2(x1_prior_cam))
+        r1_prior_cam_f = -1 * (torch.sigmoid(r1_prior_cam_f)) + 1
+        r1_prior_cam_s = -1 * (torch.sigmoid(x1_prior_cam)) + 1
+        r1_prior_cam = r1_prior_cam_s + r1_prior_cam_f
+
+        r_prior_cam = r_prior_cam + r1_prior_cam
+
+        y_ra = r_prior_cam.expand(-1, X.size()[1], -1, -1).mul(FI)
+
+        out = torch.cat([y_ra, yt_out], dim=1)
+
+        y = self.out(out)
+        y = y + prior_cam + x1_prior_cam
+        return y
+
+class DRD_3(nn.Module): # DRP (Dual-domain Reverse Parser)
+    def __init__(self, in_channels, mid_channels):
+        super(DRD_3, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels * 4, in_channels, kernel_size=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),nn.ReLU(True),
+        )
+
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride=1), nn.BatchNorm2d(in_channels),nn.ReLU(True),
+        )
+
+        self.out = nn.Sequential(
+            nn.Conv2d(in_channels * 2, mid_channels, kernel_size=3, padding=1), nn.BatchNorm2d(mid_channels),nn.ReLU(True),
+            nn.Conv2d(mid_channels, 1, kernel_size=1)
+        )
+
+        self.weight = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels // 16, 1, bias=True),
+            nn.BatchNorm2d(in_channels // 16),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels // 16, in_channels, 1, bias=True),
+            nn.Sigmoid())
+
+        self.norm = nn.BatchNorm2d(in_channels)
+        self.relu = nn.ReLU(True)
+
+    def forward(self, X, x1,x2, prior_cam):
+        prior_cam = F.interpolate(prior_cam, size=X.size()[2:], mode='bilinear',align_corners=True)  #
+        x1_prior_cam = F.interpolate(x1, size=X.size()[2:], mode='bilinear', align_corners=True)
+        x2_prior_cam = F.interpolate(x2, size=X.size()[2:], mode='bilinear', align_corners=True)
+        FI = X
+
+        yt = self.conv(torch.cat([FI, prior_cam.expand(-1, X.size()[1], -1, -1), x1_prior_cam.expand(-1, X.size()[1], -1, -1),x2_prior_cam.expand(-1, X.size()[1], -1, -1)],dim=1))
+
+        yt_s = self.conv3(yt)
+        yt_out = yt_s
+
+        r_prior_cam_f = torch.abs(torch.fft.fft2(prior_cam))
+        r_prior_cam_f = -1 * (torch.sigmoid(r_prior_cam_f)) + 1
+        r_prior_cam_s = -1 * (torch.sigmoid(prior_cam)) + 1
+        r_prior_cam = r_prior_cam_s + r_prior_cam_f
+
+        r1_prior_cam_f = torch.abs(torch.fft.fft2(x1_prior_cam))
+        r1_prior_cam_f = -1 * (torch.sigmoid(r1_prior_cam_f)) + 1
+        r1_prior_cam_s = -1 * (torch.sigmoid(x1_prior_cam)) + 1
+        r1_prior_cam1 = r1_prior_cam_s + r1_prior_cam_f
+
+        r2_prior_cam_f = torch.abs(torch.fft.fft2(x2_prior_cam))
+        r2_prior_cam_f = -1 * (torch.sigmoid(r2_prior_cam_f)) + 1
+        r2_prior_cam_s = -1 * (torch.sigmoid(x2_prior_cam)) + 1
+        r1_prior_cam2 = r2_prior_cam_s + r2_prior_cam_f
+
+        r_prior_cam = r_prior_cam + r1_prior_cam1 + r1_prior_cam2
+
+        y_ra = r_prior_cam.expand(-1, X.size()[1], -1, -1).mul(FI)
+
+        out = torch.cat([y_ra, yt_out], dim=1)
+
+        y = self.out(out)
+
+        y = y + prior_cam + x1_prior_cam + x2_prior_cam
+
+        return y
+
+
 
 class DRP_1(nn.Module): # DRP (Dual-domain Reverse Parser)
     def __init__(self, in_channels, mid_channels):
