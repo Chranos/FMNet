@@ -93,8 +93,14 @@ class FeedForward(nn.Module):
         super(FeedForward, self).__init__()
 
         self.dwconv1 = nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=1,groups=dim, bias=bias)
-        self.dwconv2 = nn.Conv2d(dim*2, dim*2, kernel_size=3, stride=1, padding=1, groups=dim, bias=bias)
-        self.project_out = nn.Conv2d(dim*4, dim, kernel_size=1, bias=bias)
+        self.dwconv3 = nn.Conv2d(dim*2, dim*2, kernel_size=3, stride=1, padding=1, groups=dim, bias=bias)
+       
+        self.dwconv5 = nn.Conv2d(dim, dim, kernel_size=5, stride=1, padding=2, groups=dim, bias=bias)
+        self.dwconv7 = nn.Conv2d(dim, dim, kernel_size=7, stride=1, padding=3, groups=dim, bias=bias)
+       
+
+    
+        self.project_out = nn.Conv2d(dim*6, dim, kernel_size=1, bias=bias)
         self.weight = nn.Sequential(
             nn.Conv2d(dim, dim // 16, 1, bias=True),
             nn.BatchNorm2d(dim // 16),
@@ -113,14 +119,21 @@ class FeedForward(nn.Module):
         x_f = torch.abs(self.weight(tepx.real)*tepx)
         x_f_gelu = F.gelu(x_f) * x_f
 
-        x_s   = self.dwconv1(x)
+        x_s = self.dwconv1(x)
         x_s_gelu = F.gelu(x_s) * x_s
+
+        x_5 = self.dwconv5(x)
+        x_5_gelu = F.gelu(x_5) * x_5
+
+        x_7 = self.dwconv7(x)
+        x_7_gelu = F.gelu(x_7) * x_7
+
 
         x_f = torch.fft.fft2(torch.cat((x_f_gelu,x_s_gelu),1))
         x_f = torch.abs(torch.fft.ifft2(self.weight1(x_f.real) * x_f))
 
-        x_s = self.dwconv2(torch.cat((x_f_gelu,x_s_gelu),1))
-        out = self.project_out(torch.cat((x_f,x_s),1))
+        x_s = self.dwconv3(torch.cat((x_f_gelu,x_s_gelu),1))
+        out = self.project_out(torch.cat((x_f,x_s,x_5_gelu,x_7_gelu),1))
 
         return out
 
@@ -309,27 +322,7 @@ class SS2D_F(nn.Module):
         self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=bias, **factory_kwargs)
         self.dropout = nn.Dropout(dropout) if dropout > 0. else None
 
-    def local_scan(x, H=14, W=14, w=7, flip=False, column_first=False):
-      """Local windowed scan in LocalMamba
-      Input: 
-          x: [B, C, H, W]
-          H, W: original width and height
-          column_first: column-wise scan first (the additional direction in VMamba)
-      Return: [B, C, L]
-      """
-      B, C, _, _ = x.shape
-      x = x.view(B, C, H, W)
-      Hg, Wg = math.floor(H / w), math.floor(W / w)
-      if H % w != 0 or W % w != 0:
-          newH, newW = Hg * w, Wg * w
-          x = x[:,:,:newH,:newW]
-      if column_first:
-          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 4, 2, 5, 3).reshape(B, C, -1)
-      else:
-          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 2, 4, 3, 5).reshape(B, C, -1)
-      if flip:
-          x = x.flip([-1])
-      return x
+    
 
     @staticmethod
     def dt_init(dt_rank, d_inner, dt_scale=1.0, dt_init="random", dt_min=0.001, dt_max=0.1, dt_init_floor=1e-4,
@@ -388,12 +381,36 @@ class SS2D_F(nn.Module):
         D._no_weight_decay = True
         return D
     
+
+    def local_scan(self, x, H=14, W=14, w=7, flip=False, column_first=False):
+      """Local windowed scan in LocalMamba
+      Input: 
+          x: [B, C, H, W]
+          H, W: original width and height
+          column_first: column-wise scan first (the additional direction in VMamba)
+      Return: [B, C, L]
+      """
+      B, C, _, _ = x.shape
+      x = x.view(B, C, H, W)
+      Hg, Wg = math.floor(H / w), math.floor(W / w)
+      if H % w != 0 or W % w != 0:
+          newH, newW = Hg * w, Wg * w
+          x = x[:,:,:newH,:newW]
+      if column_first:
+          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 4, 2, 5, 3).reshape(B, C, -1)
+      else:
+          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 2, 4, 3, 5).reshape(B, C, -1)
+      if flip:
+          x = x.flip([-1])
+      return x
+
     def forward_core(self, x: torch.Tensor):
         B, C, H, W = x.shape
         L = H * W
         K = 4
-        x1 = self.local_scan(x, H, W, w=H//4)
-        x2 = self.local_scan(x, H, W, w=H//4, column_first = True)
+        w = H//4
+        x1 = self.local_scan(x, H, W, w)
+        x2 = self.local_scan(x, H, W, w, column_first = True)
 
         x_hwwh = torch.stack([x1,x2],dim=1).view(B, 2, -1, L)
         # x_hwwh = torch.stack([x.view(B, -1, L), torch.transpose(x, dim0=2, dim1=3).contiguous().view(B, -1, L)], dim=1).view(B, 2, -1, L)
@@ -683,6 +700,42 @@ class Mlp(nn.Module):
         return x
 
 
+## Multi-Scale Feed-Forward Network (MSFN)
+class MSFN(nn.Module):
+    def __init__(self, dim, ffn_expansion_factor, bias):
+        super(MSFN, self).__init__()
+
+        hidden_features = int(dim*ffn_expansion_factor)
+
+        self.project_in = nn.Conv3d(dim, hidden_features*3, kernel_size=(1,1,1), bias=bias)
+
+        self.dwconv1 = nn.Conv3d(hidden_features, hidden_features, kernel_size=(3,3,3), stride=1, dilation=1, padding=1, groups=hidden_features, bias=bias)
+        # self.dwconv2 = nn.Conv3d(hidden_features, hidden_features, kernel_size=(3,3,3), stride=1, dilation=2, padding=2, groups=hidden_features, bias=bias)
+        # self.dwconv3 = nn.Conv3d(hidden_features, hidden_features, kernel_size=(3,3,3), stride=1, dilation=3, padding=3, groups=hidden_features, bias=bias)
+        self.dwconv2 = nn.Conv2d(hidden_features, hidden_features, kernel_size=(3,3), stride=1, dilation=2, padding=2, groups=hidden_features, bias=bias)
+        self.dwconv3 = nn.Conv2d(hidden_features, hidden_features, kernel_size=(3,3), stride=1, dilation=3, padding=3, groups=hidden_features, bias=bias)
+
+
+        self.project_out = nn.Conv3d(hidden_features, dim, kernel_size=(1,1,1), bias=bias)
+
+    def forward(self, x):
+        x = x.unsqueeze(2)
+        x = self.project_in(x)
+        x1,x2,x3 = x.chunk(3, dim=1)
+        x1 = self.dwconv1(x1).squeeze(2)
+        x2 = self.dwconv2(x2.squeeze(2))
+        x3 = self.dwconv3(x3.squeeze(2))
+        # x1 = self.dwconv1(x1)
+        # x2 = self.dwconv2(x2)
+        # x3 = self.dwconv3(x3)
+        x = F.gelu(x1)*x2*x3
+        x = x.unsqueeze(2)
+        x = self.project_out(x)
+        x = x.squeeze(2)      
+        return x
+
+
+
 class HybridGate(nn.Module):
     '''
     hybrid feed-forward with channel attention and MLP layer
@@ -825,7 +878,7 @@ class FSFMB(nn.Module):
         Yh_lf[:, :, 2, :, :] = h00[:, :, H4:H2, W4:W2]  # 对角线高频
 
         # 使用逆小波变换恢复第一次分解的低频部分
-        Yl = self.ifm((Yl2, [Yh_lf]))
+        Yl = self.idwt((Yl2, [Yh_lf]))
 
         # 提取第一次分解的高频子带
         Yh_hf = torch.zeros(B, C, 3, H2, W2, device=h00.device)  # 第一次分解的高频子带
@@ -836,7 +889,7 @@ class FSFMB(nn.Module):
         Yh_hf_hf[:, :, 0, :, :] = h00[:, :, :H4, W2 + W4:]  # 水平的水平高频
         Yh_hf_hf[:, :, 1, :, :] = h00[:, :, H4:H2, W2:W2 + W4]  # 水平的垂直高频
         Yh_hf_hf[:, :, 2, :, :] = h00[:, :, H4:H2, W2 + W4:]  # 水平的对角线高频
-        Yh_hf[:, :, 0, :, :] = self.ifm((Yh_hf_l2, [Yh_hf_hf]))  # 恢复水平高频
+        Yh_hf[:, :, 0, :, :] = self.idwt((Yh_hf_l2, [Yh_hf_hf]))  # 恢复水平高频
 
         # 垂直高频部分（两次分解）
         Yh_vf_l2 = h00[:, :, H2:H2 + H4, :W4]  # 垂直高频的第二次分解
@@ -844,7 +897,7 @@ class FSFMB(nn.Module):
         Yh_vf_hf[:, :, 0, :, :] = h00[:, :, H2:H2 + H4, W4:W2]  # 垂直的水平高频
         Yh_vf_hf[:, :, 1, :, :] = h00[:, :, H2 + H4:, :W4]  # 垂直的垂直高频
         Yh_vf_hf[:, :, 2, :, :] = h00[:, :, H2 + H4:, W4:W2]  # 垂直的对角线高频
-        Yh_hf[:, :, 1, :, :] = self.ifm((Yh_vf_l2, [Yh_vf_hf]))  # 恢复垂直高频
+        Yh_hf[:, :, 1, :, :] = self.idwt((Yh_vf_l2, [Yh_vf_hf]))  # 恢复垂直高频
 
         # 对角线高频部分（两次分解）
         Yh_df_l2 = h00[:, :, H2:H2 + H4, W2:W2 + W4]  # 对角线高频的第二次分解
@@ -852,13 +905,34 @@ class FSFMB(nn.Module):
         Yh_df_hf[:, :, 0, :, :] = h00[:, :, H2:H2 + H4, W2 + W4:]  # 对角线的水平高频
         Yh_df_hf[:, :, 1, :, :] = h00[:, :, H2 + H4:, W2:W2 + W4]  # 对角线的垂直高频
         Yh_df_hf[:, :, 2, :, :] = h00[:, :, H2 + H4:, W2 + W4:]  # 对角线的对角线高频
-        Yh_hf[:, :, 2, :, :] = self.ifm((Yh_df_l2, [Yh_df_hf]))  # 恢复对角线高频
+        Yh_hf[:, :, 2, :, :] = self.idwt((Yh_df_l2, [Yh_df_hf]))  # 恢复对角线高频
 
         # 使用第一次分解的低频和高频子带恢复原始图像
-        recons = self.ifm((Yl, [Yh_hf]))
+        recons = self.idwt((Yl, [Yh_hf]))
 
         return recons
     
+    def expand_to_match_dwt(self, x):
+        """
+        扩展输入张量 tepx2，使其满足小波分解后的分辨率匹配要求。
+
+        参数:
+            tepx2: 输入张量，形状 [B, C, H, W]
+
+        返回:
+            tepx2_expanded: 扩展后的输入张量
+            pad_sizes: 扩展的边界大小，用于后续恢复原始形状
+        """
+        B, C, H, W = x.size()
+
+        # 确保分辨率是 2 的倍数
+        pad_h = (2 - H % 2) % 2  # 高度需要扩展的大小
+        pad_w = (2 - W % 2) % 2  # 宽度需要扩展的大小
+
+        # 扩展边界（对称填充）
+        x_expanded = F.pad(x, (0, pad_w, 0, pad_h), mode="reflect")
+
+        return x_expanded
  
 
     def forward(self, input):
@@ -870,42 +944,60 @@ class FSFMB(nn.Module):
         x1 = input
         x2 = input
 
+        tepx2 = x2
         # First wavelet decomposition
-        Yl, Yh = self.dwt(x2)  # Yl: First-level low-frequency, Yh[0]: First-level high-frequency
-
+        Yl, Yh = self.dwt(tepx2)  # Yl: First-level low-frequency, Yh[0]: First-level high-frequency
+        
+        #rem = tepx2.size(2) % 4
+        
+        tepx2 = F.pad(tepx2,(0,4,0,4),mode="reflect")
         # Create the output tensor h00 with the same shape as the input x
-        h00 = torch.zeros_like(x2)
+        h00 = torch.zeros_like(tepx2)
 
         # Perform another DWT on the first-level low-frequency Yl
         Yl2, Yh_lf = self.dwt(Yl)
-        
+        Yl =  self.expand_to_match_dwt(Yl)
         # a = Yl.size(2) 
         # b = Yl2.size(2)
         # c = Yh_lf[0].size(3)
         # print("a = " + str(Yl.size(2)) + "b = " + str(Yl2.size(2)) +"c = " + str(Yh_lf[0].size(3)))
-
-        h00[:, :, :Yl.size(2), :Yl.size(3)] = self.combine_subbands(Yl2, Yh_lf)
+        HW = Yl.size(2)
+        h00[:, :, :HW, :HW] = self.combine_subbands(Yl2, Yh_lf)
 
         # Perform another DWT on the first-level horizontal high-frequency Yh[0][:, :, 0]
         Yl_hf, Yh_hf = self.dwt(Yh[0][:, :, 0, :, :])
+        # Yh[0][:, :, 0, :, :] = self.expand_to_match_dwt(Yh[0][:, :, 0, :, :])
 
-        h00[:, :, :Yl.size(2), Yl.size(3):] = self.combine_subbands(Yl_hf, Yh_hf)
+        h00[:, :, :HW, HW:HW*2] = self.combine_subbands(Yl_hf, Yh_hf)
 
         # Perform another DWT on the first-level vertical high-frequency Yh[0][:, :, 1]
         Yl_vf, Yh_vf = self.dwt(Yh[0][:, :, 1, :, :])
+        #Yh[0][:, :, 1, :, :] = self.expand_to_match_dwt(Yh[0][:, :, 1, :, :])
 
-        h00[:, :, Yl.size(2):, :Yl.size(3)] = self.combine_subbands(Yl_vf, Yh_vf)
+        h00[:, :, HW:HW*2, :HW] = self.combine_subbands(Yl_vf, Yh_vf)
 
         # Perform another DWT on the first-level diagonal high-frequency Yh[0][:, :, 2]
         Yl_df, Yh_df = self.dwt(Yh[0][:, :, 2, :, :])
+        # Yh[0][:, :, 2, :, :] = self.expand_to_match_dwt(Yh[0][:, :, 2, :, :])
 
-        h00[:, :, Yl.size(2):, Yl.size(3):] = self.combine_subbands(Yl_df, Yh_df)
+        h00[:, :, Yl.size(2):HW*2, HW:HW*2] = self.combine_subbands(Yl_df, Yh_df)
+
+        h00 = h00[:,:,:HW*2,:HW*2]
+        # print("h00")
+        # print(h00.shape)
+
 
         h00 = rearrange(h00, "b c h w -> b h w c").contiguous()
         h11 = h00+ self.drop_path(self.mambascan_f(h00))
         h11 = rearrange(h11, "b h w c -> b c h w").contiguous()
 
-        f_out = self.inverse_wavelet_transform(h00)
+        # print("h11")
+        # print(h11.shape)
+
+        f_out = self.inverse_wavelet_transform(h11)
+        f_out = f_out[:,:,:h,:w].contiguous()
+        # print("fout")
+        # print(f_out.shape)
 
         # f_x2 = torch.fft.fft2(x2.float())
         # x_2_res = torch.abs(torch.fft.ifft2(self.weight(f_x2.real)*f_x2))
@@ -971,7 +1063,7 @@ class FSFMB(nn.Module):
         x11 = self.norm1(layer1)
         x22 = layer1 # B C H W
         #  x = x*self.skip_scale2 + fft + self.hybridgate(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
-        x11 = self.hybridgate(x11)
+        x11 = self.ffn(x11)
 
         tepx22 = torch.fft.fft2(x22.float())
         x22 = torch.abs(torch.fft.ifft2(self.weight(tepx22.real)*tepx22))
