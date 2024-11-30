@@ -1065,10 +1065,10 @@ class FSFMB(nn.Module):
         #  x = x*self.skip_scale2 + fft + self.hybridgate(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
         x11 = self.ffn(x11)
 
-        tepx22 = torch.fft.fft2(x22.float())
-        x22 = torch.abs(torch.fft.ifft2(self.weight(tepx22.real)*tepx22))
+        # tepx22 = torch.fft.fft2(x22.float())
+        # x22 = torch.abs(torch.fft.ifft2(self.weight(tepx22.real)*tepx22))
 
-        out_final = x22 + x11
+        out_final = x11
         out_final = self.project_out(out_final)
         
         return out_final

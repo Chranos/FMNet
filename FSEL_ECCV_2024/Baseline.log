@@ -1,6 +1,1 @@
 nohup: ignoring input
-load data...
-Start train...
-/opt/conda/lib/python3.10/site-packages/torch/nn/functional.py:3809: UserWarning: nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.
-  warnings.warn("nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.")
-2024-11-30 08:40:13.200580 Epoch [001/180], Step [0001/0750], Total_loss: 3.5924 Loss1: 1.6207 Loss2: 1.9717
