@@ -16,9 +16,6 @@ from torch.nn import init as init
 from pdb import set_trace as stx
 from pytorch_wavelets import DWTForward, DWTInverse  # (or import DWT, IDWT)
 import time
-from torch.autograd import Function
-from torch.autograd import Variable, gradcheck
-import pywt
 
 # from model_archs.TTST_arc import Attention as TSA
 # from model_archs.layer import *
@@ -96,8 +93,14 @@ class FeedForward(nn.Module):
         super(FeedForward, self).__init__()
 
         self.dwconv1 = nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=1,groups=dim, bias=bias)
-        self.dwconv2 = nn.Conv2d(dim*2, dim*2, kernel_size=3, stride=1, padding=1, groups=dim, bias=bias)
-        self.project_out = nn.Conv2d(dim*4, dim, kernel_size=1, bias=bias)
+        self.dwconv3 = nn.Conv2d(dim*2, dim*2, kernel_size=3, stride=1, padding=1, groups=dim, bias=bias)
+       
+        self.dwconv5 = nn.Conv2d(dim, dim, kernel_size=5, stride=1, padding=2, groups=dim, bias=bias)
+        self.dwconv7 = nn.Conv2d(dim, dim, kernel_size=7, stride=1, padding=3, groups=dim, bias=bias)
+       
+
+    
+        self.project_out = nn.Conv2d(dim*6, dim, kernel_size=1, bias=bias)
         self.weight = nn.Sequential(
             nn.Conv2d(dim, dim // 16, 1, bias=True),
             nn.BatchNorm2d(dim // 16),
@@ -112,17 +115,25 @@ class FeedForward(nn.Module):
             nn.Sigmoid())
     def forward(self, x):
 
-        x_f = torch.abs(self.weight(torch.fft.fft2(x.float()).real)*torch.fft.fft2(x.float()))
+        tepx = torch.fft.fft2(x.float())
+        x_f = torch.abs(self.weight(tepx.real)*tepx)
         x_f_gelu = F.gelu(x_f) * x_f
 
-        x_s   = self.dwconv1(x)
+        x_s = self.dwconv1(x)
         x_s_gelu = F.gelu(x_s) * x_s
+
+        x_5 = self.dwconv5(x)
+        x_5_gelu = F.gelu(x_5) * x_5
+
+        x_7 = self.dwconv7(x)
+        x_7_gelu = F.gelu(x_7) * x_7
+
 
         x_f = torch.fft.fft2(torch.cat((x_f_gelu,x_s_gelu),1))
         x_f = torch.abs(torch.fft.ifft2(self.weight1(x_f.real) * x_f))
 
-        x_s = self.dwconv2(torch.cat((x_f_gelu,x_s_gelu),1))
-        out = self.project_out(torch.cat((x_f,x_s),1))
+        x_s = self.dwconv3(torch.cat((x_f_gelu,x_s_gelu),1))
+        out = self.project_out(torch.cat((x_f,x_s,x_5_gelu,x_7_gelu),1))
 
         return out
 
@@ -139,155 +150,499 @@ def custom_complex_normalization(input_tensor, dim=-1):
 
     return normalized_tensor
 
+class Attention_F(nn.Module):
+    def __init__(self, dim, num_heads, bias,):
+        super(Attention_F, self).__init__()
+        self.num_heads = num_heads
+        self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
+        self.project_out = nn.Conv2d(dim*2, dim, kernel_size=1, bias=bias)
+        self.weight = nn.Sequential(
+            nn.Conv2d(dim, dim // 16, 1, bias=True),
+            nn.BatchNorm2d(dim // 16),
+            nn.ReLU(True),
+            nn.Conv2d(dim // 16, dim, 1, bias=True),
+            nn.Sigmoid())
+    def forward(self, x):
+        b, c, h, w = x.shape
 
-class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
-        super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
-        self.act = act_layer()
-        self.fc2 = nn.Linear(hidden_features, out_features)
-        self.drop = nn.Dropout(drop)
+        q_f = torch.fft.fft2(x.float())
+        k_f = torch.fft.fft2(x.float())
+        v_f = torch.fft.fft2(x.float())
+        tepqkv = torch.fft.fft2(x.float())
+
+        q_f = rearrange(q_f, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        k_f = rearrange(k_f, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        v_f = rearrange(v_f, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+
+        q_f = torch.nn.functional.normalize(q_f, dim=-1)
+        k_f = torch.nn.functional.normalize(k_f, dim=-1)
+        attn_f = (q_f @ k_f.transpose(-2, -1)) * self.temperature
+        attn_f = custom_complex_normalization(attn_f, dim=-1)
+        out_f = torch.abs(torch.fft.ifft2(attn_f @ v_f))
+        out_f = rearrange(out_f, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
+        out_f_l = torch.abs(torch.fft.ifft2(self.weight(tepqkv.real)*tepqkv))
+        out = self.project_out(torch.cat((out_f,out_f_l),1))
+        return out
+
+class Attention_S(nn.Module):
+    def __init__(self, dim, num_heads, bias,):
+        super(Attention_S, self).__init__()
+        self.num_heads = num_heads
+        self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
+
+        self.qkv1conv_1 = nn.Conv2d(dim,dim,kernel_size=1)
+        self.qkv2conv_1 = nn.Conv2d(dim, dim, kernel_size=1)
+        self.qkv3conv_1 = nn.Conv2d(dim, dim, kernel_size=1)
+
+
+        self.qkv1conv_3 = nn.Conv2d(dim, dim//2, kernel_size=3, stride=1, padding=1, groups=dim//2, bias=bias)
+        self.qkv2conv_3 = nn.Conv2d(dim, dim//2, kernel_size=3, stride=1, padding=1, groups=dim//2, bias=bias)
+        self.qkv3conv_3 = nn.Conv2d(dim, dim//2, kernel_size=3, stride=1, padding=1, groups=dim//2, bias=bias)
+
+        self.qkv1conv_5 = nn.Conv2d(dim, dim // 2, kernel_size=5, stride=1, padding=2, groups=dim//2, bias=bias)
+        self.qkv2conv_5 = nn.Conv2d(dim, dim // 2, kernel_size=5, stride=1, padding=2, groups=dim//2, bias=bias)
+        self.qkv3conv_5 = nn.Conv2d(dim, dim // 2, kernel_size=5, stride=1, padding=2, groups=dim//2, bias=bias)
+
+
+        self.conv_3      = nn.Conv2d(dim, dim//2, kernel_size=3, stride=1, padding=1, groups=dim//2, bias=bias)
+        self.conv_5      = nn.Conv2d(dim, dim // 2, kernel_size=5, stride=1, padding=2, groups=dim//2, bias=bias)
+        self.project_out = nn.Conv2d(dim*2, dim, kernel_size=1, bias=bias)
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.drop(x)
-        x = self.fc2(x)
-        x = self.drop(x)
+        b, c, h, w = x.shape
+        q_s = torch.cat((self.qkv1conv_3(self.qkv1conv_1(x)),self.qkv1conv_5(self.qkv1conv_1(x))),1)
+        k_s = torch.cat((self.qkv2conv_3(self.qkv2conv_1(x)),self.qkv2conv_5(self.qkv2conv_1(x))),1)
+        v_s = torch.cat((self.qkv3conv_3(self.qkv3conv_1(x)),self.qkv3conv_5(self.qkv3conv_1(x))),1)
+
+        q_s = rearrange(q_s, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        k_s = rearrange(k_s, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        v_s = rearrange(v_s, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+
+        q_s = torch.nn.functional.normalize(q_s, dim=-1)
+        k_s = torch.nn.functional.normalize(k_s, dim=-1)
+        attn_s = (q_s @ k_s.transpose(-2, -1)) * self.temperature
+        attn_s = attn_s.softmax(dim=-1)
+        out_s = (attn_s @ v_s)
+        out_s = rearrange(out_s, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
+        out_s_l = torch.cat((self.conv_3(x),self.conv_5(x)),1)
+        out = self.project_out(torch.cat((out_s,out_s_l),1))
+
+        return out
+
+    def initialize(self):
+        weight_init(self)
+
+class Module1(nn.Module):
+    def __init__(self, mode='dilation', dim=128, num_heads=8, ffn_expansion_factor=4, bias=False,
+                 LayerNorm_type='WithBias'):
+        super(Module1, self).__init__()
+        self.project_out = nn.Conv2d(dim * 2, dim, kernel_size=1, bias=bias)
+        self.norm1 = LayerNorm(dim, LayerNorm_type)
+        self.attn_S = Attention_S(dim, num_heads, bias)
+        self.attn_F = Attention_F(dim, num_heads, bias)
+        self.norm2 = LayerNorm(dim, LayerNorm_type)
+        self.ffn = FeedForward(dim, ffn_expansion_factor, bias)
+
+    def forward(self, x):
+        x = x + torch.add(self.attn_F(self.norm1(x)),self.attn_S(self.norm1(x)))
+        x = x + self.ffn(self.norm2(x))
         return x
 
 
-class LinearAttention_B(nn.Module):
-    r""" Linear Attention with LePE and RoPE.
-
-    Args:
-        dim (int): Number of input channels.
-        num_heads (int): Number of attention heads.
-        qkv_bias (bool, optional):  If True, add a learnable bias to query, key, value. Default: True
-    """
-
-    def __init__(self, dim, input_resolution, num_heads, qkv_bias=True, **kwargs):
-
+class SS2D_F(nn.Module):
+    def __init__(
+            self,
+            d_model,
+            d_state=16,
+            d_conv=3,
+            expand=2,
+            dt_rank="auto",
+            dt_min=0.001,
+            dt_max=0.1,
+            dt_init="random",
+            dt_scale=1.0,
+            dt_init_floor=1e-4,
+            dropout=0.,
+            conv_bias=True,
+            bias=False,
+            device=None,
+            dtype=None,
+            **kwargs,
+    ):
+        factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
-        self.dim = dim
-        self.input_resolution = input_resolution
-        self.num_heads = num_heads
-        self.qk = nn.Linear(dim, dim * 2, bias=qkv_bias)
-        self.elu = nn.ELU()
-        self.lepe = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
-        self.rope = RoPE(shape=(input_resolution[0], input_resolution[1], dim))
+        self.d_model = d_model
+        self.d_state = d_state
+        self.d_conv = d_conv
+        self.expand = expand
+        self.d_inner = int(self.expand * self.d_model)
+        self.dt_rank = math.ceil(self.d_model / 16) if dt_rank == "auto" else dt_rank
 
-    def forward(self, x):
-        """
-        Args:
-            x: input features with shape of (B, N, C)
-        """
-        b, n, c = x.shape
-        h = int(n ** 0.5)
-        w = int(n ** 0.5)
-        num_heads = self.num_heads
-        head_dim = c // num_heads
-
-        qk = self.qk(x).reshape(b, n, 2, c).permute(2, 0, 1, 3)
-        q, k, v = qk[0], qk[1], x
-        # q, k, v: b, n, c
-
-        q = self.elu(q) + 1.0
-        k = self.elu(k) + 1.0
-        q_rope = self.rope(q.reshape(b, h, w, c)).reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
-        k_rope = self.rope(k.reshape(b, h, w, c)).reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
-        q = q.reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
-        k = k.reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
-        v = v.reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
-
-        z = 1 / (q @ k.mean(dim=-2, keepdim=True).transpose(-2, -1) + 1e-6)
-        kv = (k_rope.transpose(-2, -1) * (n ** -0.5)) @ (v * (n ** -0.5))
-        x = q_rope @ kv * z
-
-        x = x.transpose(1, 2).reshape(b, n, c)
-        v = v.transpose(1, 2).reshape(b, h, w, c).permute(0, 3, 1, 2)
-        x = x + self.lepe(v).permute(0, 2, 3, 1).reshape(b, n, c)
-
-        return x
-
-    def extra_repr(self) -> str:
-        return f'dim={self.dim}, num_heads={self.num_heads}'
-
-
-
-
-
-class MLLABlock(nn.Module):
-    r""" MLLA Block.
-
-    Args:
-        dim (int): Number of input channels.
-        input_resolution (tuple[int]): Input resulotion.
-        num_heads (int): Number of attention heads.
-        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
-        qkv_bias (bool, optional): If True, add a learnable bias to query, key, value. Default: True
-        drop (float, optional): Dropout rate. Default: 0.0
-        drop_path (float, optional): Stochastic depth rate. Default: 0.0
-        act_layer (nn.Module, optional): Activation layer. Default: nn.GELU
-        norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
-    """
-
-    def __init__(self, dim, input_resolution, num_heads, mlp_ratio=4., qkv_bias=True, drop=0., drop_path=0.,
-                 act_layer=nn.GELU, norm_layer=nn.LayerNorm, **kwargs):
-        super().__init__()
-        self.dim = dim
-        self.input_resolution = input_resolution
-        self.num_heads = num_heads
-        self.mlp_ratio = mlp_ratio
-
-        self.cpe1 = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
-        self.norm1 = norm_layer(dim)
-        self.in_proj = nn.Linear(dim, dim)
-        self.act_proj = nn.Linear(dim, dim)
-        self.dwc = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
+        self.in_proj = nn.Linear(self.d_model, self.d_inner * 2, bias=bias, **factory_kwargs)
+        self.conv2d = nn.Conv2d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            groups=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            padding=(d_conv - 1) // 2,
+            **factory_kwargs,
+        )
         self.act = nn.SiLU()
-        self.attn = LinearAttention(dim=dim, input_resolution=input_resolution, num_heads=num_heads, qkv_bias=qkv_bias)
-        self.out_proj = nn.Linear(dim, dim)
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        self.cpe2 = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
-        self.norm2 = norm_layer(dim)
-        self.mlp = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act_layer, drop=drop)
+        self.x_proj = (
+            nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
+            nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
+            nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
+            nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
+        )
+        self.x_proj_weight = nn.Parameter(torch.stack([t.weight for t in self.x_proj], dim=0))  # (K=4, N, inner)
+        del self.x_proj
 
-    def forward(self, x):
-        H, W = self.input_resolution
-        B, L, C = x.shape
-        assert L == H * W, "input feature has wrong size"
+        self.dt_projs = (
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
+                         **factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
+                         **factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
+                         **factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
+                         **factory_kwargs),
+        )
+        self.dt_projs_weight = nn.Parameter(torch.stack([t.weight for t in self.dt_projs], dim=0))  # (K=4, inner, rank)
+        self.dt_projs_bias = nn.Parameter(torch.stack([t.bias for t in self.dt_projs], dim=0))  # (K=4, inner)
+        del self.dt_projs
 
-        x = x + self.cpe1(x.reshape(B, H, W, C).permute(0, 3, 1, 2)).flatten(2).permute(0, 2, 1)
-        shortcut = x
+        self.A_logs = self.A_log_init(self.d_state, self.d_inner, copies=4, merge=True)  # (K=4, D, N)
+        self.Ds = self.D_init(self.d_inner, copies=4, merge=True)  # (K=4, D, N)
 
-        x = self.norm1(x)
-        act_res = self.act(self.act_proj(x))
-        x = self.in_proj(x).view(B, H, W, C)
-        x = self.act(self.dwc(x.permute(0, 3, 1, 2))).permute(0, 2, 3, 1).view(B, L, C)
+        self.selective_scan = selective_scan_fn
 
-        # Linear Attention
-        x = self.attn(x)
+        self.out_norm = nn.LayerNorm(self.d_inner)
+        self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=bias, **factory_kwargs)
+        self.dropout = nn.Dropout(dropout) if dropout > 0. else None
 
-        x = self.out_proj(x * act_res)
-        x = shortcut + self.drop_path(x)
-        x = x + self.cpe2(x.reshape(B, H, W, C).permute(0, 3, 1, 2)).flatten(2).permute(0, 2, 1)
+    
 
-        # FFN
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
-        return x
+    @staticmethod
+    def dt_init(dt_rank, d_inner, dt_scale=1.0, dt_init="random", dt_min=0.001, dt_max=0.1, dt_init_floor=1e-4,
+                **factory_kwargs):
+        dt_proj = nn.Linear(dt_rank, d_inner, bias=True, **factory_kwargs)
 
-    def extra_repr(self) -> str:
-        return f"dim={self.dim}, input_resolution={self.input_resolution}, num_heads={self.num_heads}, " \
-               f"mlp_ratio={self.mlp_ratio}"
+        # Initialize special dt projection to preserve variance at initialization
+        dt_init_std = dt_rank ** -0.5 * dt_scale
+        if dt_init == "constant":
+            nn.init.constant_(dt_proj.weight, dt_init_std)
+        elif dt_init == "random":
+            nn.init.uniform_(dt_proj.weight, -dt_init_std, dt_init_std)
+        else:
+            raise NotImplementedError
 
+        # Initialize dt bias so that F.softplus(dt_bias) is between dt_min and dt_max
+        dt = torch.exp(
+            torch.rand(d_inner, **factory_kwargs) * (math.log(dt_max) - math.log(dt_min))
+            + math.log(dt_min)
+        ).clamp(min=dt_init_floor)
+        # Inverse of softplus: https://github.com/pytorch/pytorch/issues/72759
+        inv_dt = dt + torch.log(-torch.expm1(-dt))
+        with torch.no_grad():
+            dt_proj.bias.copy_(inv_dt)
+        # Our initialization would set all Linear.bias to zero, need to mark this one as _no_reinit
+        dt_proj.bias._no_reinit = True
 
+        return dt_proj
 
+    @staticmethod
+    def A_log_init(d_state, d_inner, copies=1, device=None, merge=True):
+        # S4D real initialization
+        A = repeat(
+            torch.arange(1, d_state + 1, dtype=torch.float32, device=device),
+            "n -> d n",
+            d=d_inner,
+        ).contiguous()
+        A_log = torch.log(A)  # Keep A_log in fp32
+        if copies > 1:
+            A_log = repeat(A_log, "d n -> r d n", r=copies)
+            if merge:
+                A_log = A_log.flatten(0, 1)
+        A_log = nn.Parameter(A_log)
+        A_log._no_weight_decay = True
+        return A_log
 
+    @staticmethod
+    def D_init(d_inner, copies=1, device=None, merge=True):
+        # D "skip" parameter
+        D = torch.ones(d_inner, device=device)
+        if copies > 1:
+            D = repeat(D, "n1 -> r n1", r=copies)
+            if merge:
+                D = D.flatten(0, 1)
+        D = nn.Parameter(D)  # Keep in fp32
+        D._no_weight_decay = True
+        return D
+    
 
+    def local_scan(self, x, H=14, W=14, w=7, flip=False, column_first=False):
+      """Local windowed scan in LocalMamba
+      Input: 
+          x: [B, C, H, W]
+          H, W: original width and height
+          column_first: column-wise scan first (the additional direction in VMamba)
+      Return: [B, C, L]
+      """
+      B, C, _, _ = x.shape
+      x = x.view(B, C, H, W)
+      Hg, Wg = math.floor(H / w), math.floor(W / w)
+      if H % w != 0 or W % w != 0:
+          newH, newW = Hg * w, Wg * w
+          x = x[:,:,:newH,:newW]
+      if column_first:
+          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 4, 2, 5, 3).reshape(B, C, -1)
+      else:
+          x = x.view(B, C, Hg, w, Wg, w).permute(0, 1, 2, 4, 3, 5).reshape(B, C, -1)
+      if flip:
+          x = x.flip([-1])
+      return x
+
+    def forward_core(self, x: torch.Tensor):
+        B, C, H, W = x.shape
+        L = H * W
+        K = 4
+        w = H//4
+        x1 = self.local_scan(x, H, W, w)
+        x2 = self.local_scan(x, H, W, w, column_first = True)
+
+        x_hwwh = torch.stack([x1,x2],dim=1).view(B, 2, -1, L)
+        # x_hwwh = torch.stack([x.view(B, -1, L), torch.transpose(x, dim0=2, dim1=3).contiguous().view(B, -1, L)], dim=1).view(B, 2, -1, L)
+        xs = torch.cat([x_hwwh, torch.flip(x_hwwh, dims=[-1])], dim=1) # (1, 4, 192, 3136)
+        x_dbl = torch.einsum("b k d l, k c d -> b k c l", xs.view(B, K, -1, L), self.x_proj_weight)
+        dts, Bs, Cs = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=2)
+        dts = torch.einsum("b k r l, k d r -> b k d l", dts.view(B, K, -1, L), self.dt_projs_weight)
+
+        xs = xs.float().view(B, -1, L)
+        dts = dts.contiguous().float().view(B, -1, L) # (b, k * d, l)
+        Bs = Bs.float().view(B, K, -1, L)
+        Cs = Cs.float().view(B, K, -1, L) # (b, k, d_state, l)
+        Ds = self.Ds.float().view(-1)
+        As = -torch.exp(self.A_logs.float()).view(-1, self.d_state)
+        dt_projs_bias = self.dt_projs_bias.float().view(-1) # (k * d)
+
+        out_y = self.selective_scan(
+            xs, dts,
+            As, Bs, Cs, Ds, z=None,
+            delta_bias=dt_projs_bias,
+            delta_softplus=True,
+            return_last_state=False,
+        ).view(B, K, -1, L)
+        assert out_y.dtype == torch.float
+
+        inv_y = torch.flip(out_y[:, 2:4], dims=[-1]).view(B, 2, -1, L)
+        wh_y = torch.transpose(out_y[:, 1].view(B, -1, W, H), dim0=2, dim1=3).contiguous().view(B, -1, L)
+        invwh_y = torch.transpose(inv_y[:, 1].view(B, -1, W, H), dim0=2, dim1=3).contiguous().view(B, -1, L)
+
+        return out_y[:, 0], inv_y[:, 0], wh_y, invwh_y
+
+    def forward(self, x: torch.Tensor, **kwargs):
+        B, H, W, C = x.shape
+
+        xz = self.in_proj(x)
+        x, z = xz.chunk(2, dim=-1)
+        x = x.permute(0, 3, 1, 2).contiguous()
+        x = self.act(self.conv2d(x))
+        y1, y2, y3, y4 = self.forward_core(x)
+        assert y1.dtype == torch.float32
+        y = y1 + y2 + y3 + y4
+        y = torch.transpose(y, dim0=1, dim1=2).contiguous().view(B, H, W, -1)
+        y = self.out_norm(y)
+        y = y * F.silu(z)
+        out = self.out_proj(y)
+        if self.dropout is not None:
+            out = self.dropout(out)
+        return out
+ 
+
+class SS2D(nn.Module):
+    def __init__(
+            self,
+            d_model,
+            d_state=16,
+            d_conv=3,
+            expand=2,
+            dt_rank="auto",
+            dt_min=0.001,
+            dt_max=0.1,
+            dt_init="random",
+            dt_scale=1.0,
+            dt_init_floor=1e-4,
+            dropout=0.,
+            conv_bias=True,
+            bias=False,
+            device=None,
+            dtype=None,
+            **kwargs,
+    ):
+        factory_kwargs = {"device": device, "dtype": dtype}
+        super().__init__()
+        self.d_model = d_model
+        self.d_state = d_state
+        self.d_conv = d_conv
+        self.expand = expand
+        self.d_inner = int(self.expand * self.d_model)
+        self.dt_rank = math.ceil(self.d_model / 16) if dt_rank == "auto" else dt_rank
+
+        self.in_proj = nn.Linear(self.d_model, self.d_inner * 2, bias=bias, **factory_kwargs)
+        self.conv2d = nn.Conv2d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            groups=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            padding=(d_conv - 1) // 2,
+            **factory_kwargs,
+        )
+        self.act = nn.SiLU()
+
+        self.x_proj = (
+            nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
+            nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
+            nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
+            nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
+        )
+        self.x_proj_weight = nn.Parameter(torch.stack([t.weight for t in self.x_proj], dim=0))  # (K=4, N, inner)
+        del self.x_proj
+
+        self.dt_projs = (
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
+                         **factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
+                         **factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
+                         **factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
+                         **factory_kwargs),
+        )
+        self.dt_projs_weight = nn.Parameter(torch.stack([t.weight for t in self.dt_projs], dim=0))  # (K=4, inner, rank)
+        self.dt_projs_bias = nn.Parameter(torch.stack([t.bias for t in self.dt_projs], dim=0))  # (K=4, inner)
+        del self.dt_projs
+
+        self.A_logs = self.A_log_init(self.d_state, self.d_inner, copies=4, merge=True)  # (K=4, D, N)
+        self.Ds = self.D_init(self.d_inner, copies=4, merge=True)  # (K=4, D, N)
+
+        self.selective_scan = selective_scan_fn
+
+        self.out_norm = nn.LayerNorm(self.d_inner)
+        self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=bias, **factory_kwargs)
+        self.dropout = nn.Dropout(dropout) if dropout > 0. else None
+
+    @staticmethod
+    def dt_init(dt_rank, d_inner, dt_scale=1.0, dt_init="random", dt_min=0.001, dt_max=0.1, dt_init_floor=1e-4,
+                **factory_kwargs):
+        dt_proj = nn.Linear(dt_rank, d_inner, bias=True, **factory_kwargs)
+
+        # Initialize special dt projection to preserve variance at initialization
+        dt_init_std = dt_rank ** -0.5 * dt_scale
+        if dt_init == "constant":
+            nn.init.constant_(dt_proj.weight, dt_init_std)
+        elif dt_init == "random":
+            nn.init.uniform_(dt_proj.weight, -dt_init_std, dt_init_std)
+        else:
+            raise NotImplementedError
+
+        # Initialize dt bias so that F.softplus(dt_bias) is between dt_min and dt_max
+        dt = torch.exp(
+            torch.rand(d_inner, **factory_kwargs) * (math.log(dt_max) - math.log(dt_min))
+            + math.log(dt_min)
+        ).clamp(min=dt_init_floor)
+        # Inverse of softplus: https://github.com/pytorch/pytorch/issues/72759
+        inv_dt = dt + torch.log(-torch.expm1(-dt))
+        with torch.no_grad():
+            dt_proj.bias.copy_(inv_dt)
+        # Our initialization would set all Linear.bias to zero, need to mark this one as _no_reinit
+        dt_proj.bias._no_reinit = True
+
+        return dt_proj
+
+    @staticmethod
+    def A_log_init(d_state, d_inner, copies=1, device=None, merge=True):
+        # S4D real initialization
+        A = repeat(
+            torch.arange(1, d_state + 1, dtype=torch.float32, device=device),
+            "n -> d n",
+            d=d_inner,
+        ).contiguous()
+        A_log = torch.log(A)  # Keep A_log in fp32
+        if copies > 1:
+            A_log = repeat(A_log, "d n -> r d n", r=copies)
+            if merge:
+                A_log = A_log.flatten(0, 1)
+        A_log = nn.Parameter(A_log)
+        A_log._no_weight_decay = True
+        return A_log
+
+    @staticmethod
+    def D_init(d_inner, copies=1, device=None, merge=True):
+        # D "skip" parameter
+        D = torch.ones(d_inner, device=device)
+        if copies > 1:
+            D = repeat(D, "n1 -> r n1", r=copies)
+            if merge:
+                D = D.flatten(0, 1)
+        D = nn.Parameter(D)  # Keep in fp32
+        D._no_weight_decay = True
+        return D
+
+    def forward_core(self, x: torch.Tensor):
+        B, C, H, W = x.shape
+        L = H * W
+        K = 4
+
+        x_hwwh = torch.stack([x.view(B, -1, L), torch.transpose(x, dim0=2, dim1=3).contiguous().view(B, -1, L)], dim=1).view(B, 2, -1, L)
+        xs = torch.cat([x_hwwh, torch.flip(x_hwwh, dims=[-1])], dim=1) # (1, 4, 192, 3136)
+        x_dbl = torch.einsum("b k d l, k c d -> b k c l", xs.view(B, K, -1, L), self.x_proj_weight)
+        dts, Bs, Cs = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=2)
+        dts = torch.einsum("b k r l, k d r -> b k d l", dts.view(B, K, -1, L), self.dt_projs_weight)
+
+        xs = xs.float().view(B, -1, L)
+        dts = dts.contiguous().float().view(B, -1, L) # (b, k * d, l)
+        Bs = Bs.float().view(B, K, -1, L)
+        Cs = Cs.float().view(B, K, -1, L) # (b, k, d_state, l)
+        Ds = self.Ds.float().view(-1)
+        As = -torch.exp(self.A_logs.float()).view(-1, self.d_state)
+        dt_projs_bias = self.dt_projs_bias.float().view(-1) # (k * d)
+
+        out_y = self.selective_scan(
+            xs, dts,
+            As, Bs, Cs, Ds, z=None,
+            delta_bias=dt_projs_bias,
+            delta_softplus=True,
+            return_last_state=False,
+        ).view(B, K, -1, L)
+        assert out_y.dtype == torch.float
+
+        inv_y = torch.flip(out_y[:, 2:4], dims=[-1]).view(B, 2, -1, L)
+        wh_y = torch.transpose(out_y[:, 1].view(B, -1, W, H), dim0=2, dim1=3).contiguous().view(B, -1, L)
+        invwh_y = torch.transpose(inv_y[:, 1].view(B, -1, W, H), dim0=2, dim1=3).contiguous().view(B, -1, L)
+
+        return out_y[:, 0], inv_y[:, 0], wh_y, invwh_y
+
+    def forward(self, x: torch.Tensor, **kwargs):
+        B, H, W, C = x.shape
+
+        xz = self.in_proj(x)
+        x, z = xz.chunk(2, dim=-1)
+        x = x.permute(0, 3, 1, 2).contiguous()
+        x = self.act(self.conv2d(x))
+        y1, y2, y3, y4 = self.forward_core(x)
+        assert y1.dtype == torch.float32
+        y = y1 + y2 + y3 + y4
+        y = torch.transpose(y, dim0=1, dim1=2).contiguous().view(B, H, W, -1)
+        y = self.out_norm(y)
+        y = y * F.silu(z)
+        out = self.out_proj(y)
+        if self.dropout is not None:
+            out = self.dropout(out)
+        return out
+    
 
 
 class CAB(nn.Module):
@@ -326,6 +681,23 @@ class ChannelAttention(nn.Module):
         return x * y
 
 
+class Mlp(nn.Module):
+    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+        self.fc1 = nn.Linear(in_features, hidden_features)
+        self.act = act_layer()
+        self.fc2 = nn.Linear(hidden_features, out_features)
+        self.drop = nn.Dropout(drop)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.drop(x)
+        x = self.fc2(x)
+        x = self.drop(x)
+        return x
 
 
 ## Multi-Scale Feed-Forward Network (MSFN)
@@ -393,240 +765,315 @@ class HybridGate(nn.Module):
         out = x1 * x2
         # out = self.soomth(out)
         return out
-    
-class RoPE(torch.nn.Module):
-    r"""Rotary Positional Embedding.
-    """
-    def __init__(self, shape, base=10000):
-        super(RoPE, self).__init__()
-
-        channel_dims, feature_dim = shape[:-1], shape[-1]
-        k_max = feature_dim // (2 * len(channel_dims))
-
-        assert feature_dim % k_max == 0
-
-        # angles
-        theta_ks = 1 / (base ** (torch.arange(k_max) / k_max))
-        angles = torch.cat([t.unsqueeze(-1) * theta_ks for t in torch.meshgrid([torch.arange(d) for d in channel_dims], indexing='ij')], dim=-1)
-
-        # rotation
-        rotations_re = torch.cos(angles).unsqueeze(dim=-1)
-        rotations_im = torch.sin(angles).unsqueeze(dim=-1)
-        rotations = torch.cat([rotations_re, rotations_im], dim=-1)
-        self.register_buffer('rotations', rotations)
-
-    def forward(self, x):
-        if x.dtype != torch.float32:
-            x = x.to(torch.float32)
-        x = torch.view_as_complex(x.reshape(*x.shape[:-1], -1, 2))
-        pe_x = torch.view_as_complex(self.rotations) * x
-        return torch.view_as_real(pe_x).flatten(-2)
-
-
-
-class LinearAttention(nn.Module):
-    r""" Linear Attention with LePE and RoPE.
-
-    Args:
-        dim (int): Number of input channels.
-        num_heads (int): Number of attention heads.
-        qkv_bias (bool, optional):  If True, add a learnable bias to query, key, value. Default: True
-    """
-
-    def __init__(self, dim, input_resolution, num_heads, qkv_bias=True, sr_ratio = 1 ,**kwargs):
-
-        super().__init__()
-        self.dim = dim
-        self.input_resolution = input_resolution
-        self.num_heads = num_heads
-        self.sr_ratio = sr_ratio
-        self.qk = nn.Linear(dim, dim * 2, bias=qkv_bias)
-        self.q = nn.Linear(dim, dim)
-        self.k = nn.Linear(dim, dim)
-        self.v = nn.Linear(dim, dim)
-        self.elu = nn.ELU()
-        self.lepe = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
-        self.rope = RoPE(shape=(input_resolution[0], input_resolution[1], dim))
-        self.rope2 = RoPE(shape=(input_resolution[0]//2, input_resolution[1]//2, dim))
-        self.dwt = DWTForward(J=1, mode='zero', wave='haar')
-        self.idwt = DWTInverse(mode='zero', wave='haar')
-
-        self.reduce = nn.Sequential(
-            nn.Conv2d(dim, dim//4, kernel_size=1, padding=0, stride=1),
-            nn.BatchNorm2d(dim//4),
-            nn.ReLU(inplace=True),
-        )
-        self.filter = nn.Sequential(
-            nn.Conv2d(dim, dim, kernel_size=3, padding=1, stride=1, groups=1),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(inplace=True),
-        )
-        self.kv_embed = nn.Conv2d(dim, dim, kernel_size=sr_ratio, stride=sr_ratio) if sr_ratio > 1 else nn.Identity()
-        self.proj = nn.Linear(dim+dim//4, dim)
-
-    def forward(self, x):
-        """
-        Args:
-            x: input features with shape of (B, N, C)
-        """
-        b, n, c = x.shape #b 169 
-        h = int(n ** 0.5)
-        w = int(n ** 0.5)
-        num_heads = self.num_heads
-        head_dim = c // num_heads
-
-        q = self.q(x)
-
-        # x = torch.cat([x_ll, x_lh, x_hl, x_hh], dim=1)
-        x_dwtl,x_dwth = self.dwt(self.reduce(x.reshape(b, h, w, c).permute(0, 3, 1, 2)))
-        # 将高频分量拆分为水平、垂直、对角线
-        x_dwt = torch.cat([x_dwtl,x_dwth[0][:,:,0,:,:],x_dwth[0][:,:,1,:,:],x_dwth[0][:,:,2,:,:]],dim = 1)
-        x_dwt = self.filter(x_dwt)#B C H W
-
-        # 假设 x_dwt 的形状为 [B, 4*C, H, W]
-        B, C, H, W = x_dwt.shape
-        C = C // 4  # 每个分量的通道数
-
-        # 将 x_dwt 拆分为低频和高频分量
-        yl = x_dwt[:, :C, :, :]  # 低频分量 (LL)
-        yh = [torch.stack([
-            x_dwt[:, C:C*2, :, :],  # 高频水平 (LH)
-            x_dwt[:, C*2:C*3, :, :],  # 高频垂直 (HL)
-            x_dwt[:, C*3:, :, :]  # 高频对角线 (HH)
-        ], dim=2)]  # 将 3 个高频分量堆叠为 [B, C, 3, H, W] 的格式
-
-        # 使用 IDWT 还原
-        x_idwt = self.idwt((yl, yh))  # x_idwt 的形状为 [B, C, 2*H, 2*W]
-        x_idwt = x_idwt.view(b, -1, x_idwt.size(-2)*x_idwt.size(-1)).permute(0, 2, 1)
-
-        # k = self.k(x_dwt.flatten(2).permute(0, 2, 1))
-
-        kv = self.kv_embed(x_dwt).reshape(b, c, -1).permute(0, 2, 1)
-        
-        k = self.k(kv)
-        v = kv
-        vv = self.v(x)
-        
-
-        # qk = self.qk(x).reshape(b, n, 2, c).permute(2, 0, 1, 3)
-        # q, k, v = qk[0], qk[1], x
-        # q, k, v: b, n, c
-
-        q = self.elu(q) + 1.0
-        k = self.elu(k) + 1.0
-        q_rope = self.rope(q.reshape(b, h, w, c)).reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
-        k_rope = self.rope2(k.reshape(b, h//2, w//2, c)).reshape(b, -1, num_heads, head_dim).permute(0, 2, 1, 3)
-        q = q.reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
-        k = k.reshape(b, -1, num_heads, head_dim).permute(0, 2, 1, 3)
-        v = v.reshape(b, -1, num_heads, head_dim).permute(0, 2, 1, 3)
-
-        z = 1 / (q @ k.mean(dim=-2, keepdim=True).transpose(-2, -1) + 1e-6)
-        kv = (k_rope.transpose(-2, -1) * (n ** -0.5)) @ (v * (n ** -0.5))
-        x = q_rope @ kv * z
-
-        x = x.transpose(1, 2).reshape(b, n, c)
-        vv = vv.transpose(1, 2).reshape(b, h, w, c).permute(0, 3, 1, 2)
-        x = x + self.lepe(vv).permute(0, 2, 3, 1).reshape(b, -1, c)
-        x = self.proj(torch.cat([x,x_idwt],dim = -1))
-
-        return x
-
-    def extra_repr(self) -> str:
-        return f'dim={self.dim}, num_heads={self.num_heads}'
 
 
 class FSFMB(nn.Module):
-     def __init__(self, dim,out_channel, input_resolution, num_heads, mlp_ratio=4., qkv_bias=True, drop=0., drop_path=0.,
-                 act_layer=nn.GELU, norm_layer=nn.LayerNorm, sr_ratio = 1, **kwargs):
+    def __init__(
+            self,
+            hidden_dim: int = 0,
+            out_channel: int = 0,
+            drop_path: float = 0,
+            norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
+            attn_drop_rate: float = 0,
+            d_state: int = 16,
+            expand: float = 2.,
+            LayerNorm_type = 'WithBias',
+            H_W: float = 416,
+            **kwargs,
+    ):
         super().__init__()
-
-        self.dim = dim
-        self.input_resolution = input_resolution
-        self.num_heads = num_heads
-        self.mlp_ratio = mlp_ratio
-
-        self.cpe1 = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
-        self.norm1 = norm_layer(dim)
-        self.in_proj = nn.Linear(dim, dim)
-        self.act_proj = nn.Linear(dim, dim)
-        self.dwc = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
-        self.act = nn.SiLU()
-        self.attn_s = LinearAttention_B(dim=dim, input_resolution=input_resolution, num_heads=num_heads, qkv_bias=qkv_bias, sr_ratio=sr_ratio)
-        self.out_proj = nn.Linear(dim, dim)
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-
-        self.cpe2 = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
-        self.norm2 = norm_layer(dim)
-        self.mlp = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act_layer, drop=drop)
-
-        self.project_out = nn.Conv2d(dim , out_channel, kernel_size=1, bias=False)
-
+        self.ln_1 = norm_layer(hidden_dim)
+        self.norm1 = LayerNorm(hidden_dim, LayerNorm_type)
+        self.mambascan = SS2D(d_model=hidden_dim, d_state=d_state,expand=expand,dropout=attn_drop_rate, **kwargs)
         self.drop_path = DropPath(drop_path)
+        self.skip_scale= nn.Parameter(torch.ones(hidden_dim))
 
-        self.norm = nn.BatchNorm2d(dim)
+        expand_dim = hidden_dim * 2
+        mlp_hidden_dim = int(hidden_dim * 2.)
 
+        self.mambascan_f = SS2D_F(d_model=hidden_dim, d_state=d_state,expand=expand,dropout=attn_drop_rate, **kwargs)
+        self.hybridgate = HybridGate(dim=hidden_dim, mlp_ratio=2.)
+        self.mlp = Mlp(in_features=hidden_dim, hidden_features=mlp_hidden_dim, out_features=hidden_dim)
+        self.ca = CAB(num_feat=hidden_dim)
+
+        self.expand = nn.Conv2d(in_channels=hidden_dim, out_channels=expand_dim, kernel_size=1, padding=0, stride=1, bias=True)
+
+        self.ffn = FeedForward(hidden_dim, 4, False)
         self.dwt = DWTForward(J=1, mode='zero', wave='haar')
         self.idwt = DWTInverse(mode='zero', wave='haar')
 
         self.weight = nn.Sequential(
-            nn.Conv2d(dim, dim // 16, 1, bias=True),
-            nn.BatchNorm2d(dim // 16),
+            nn.Conv2d(hidden_dim, hidden_dim // 16, 1, bias=True),
+            nn.BatchNorm2d(hidden_dim // 16),
             nn.ReLU(True),
-            nn.Conv2d(dim // 16, dim, 1, bias=True),
+            nn.Conv2d(hidden_dim // 16, hidden_dim, 1, bias=True),
             nn.Sigmoid())
 
         self.softmax = Softmax(dim=-1)
-
+        self.norm = nn.BatchNorm2d(hidden_dim)
         self.relu = nn.ReLU(True)
-        
+        self.num_heads = 8
 
         self.temperature = nn.Parameter(torch.ones(self.num_heads, 1, 1))
-        self.ffn = FeedForward(dim, 4, False)
-        
+        self.conv1 = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
+        self.catout = nn.Conv2d(hidden_dim * 2, hidden_dim, kernel_size=1, bias=False)
+        self.project_out = nn.Conv2d(hidden_dim , out_channel, kernel_size=1, bias=False)
+        self.mkh = nn.Parameter(torch.zeros(torch.Size([3,hidden_dim,H_W,H_W])))
 
+
+    def combine_subbands(self, Yl, Yh):
+        """
+        Combines the low-frequency and 3 high-frequency subbands into one region (4 blocks), 
+        forming a 2x2 subband structure.
+
+        Parameters:
+            Yl: Low-frequency subband, shape [B, C, H/2, W/2]
+            Yh: High-frequency subband list, containing 3 directions, shape [B, C, 3, H/2, W/2]
+
+        Returns:
+            region: Combined tensor, shape [B, C, H, W]
+        """
+        B, C, H, W = Yl.size(0), Yl.size(1), Yl.size(2), Yl.size(3)
+        Hh, Wh = Yh[0].size(3), Yh[0].size(4)
+
+
+        H_out, W_out = H + Hh, W + Wh
+        region = torch.zeros(B, C, H_out, W_out, device=Yl.device)  # Output region with 2x size
+
+        # Place the low-frequency subband in the top-left corner
+        region[:, :, :H, :W] = Yl
+
+        # Place the horizontal high-frequency subband in the top-right corner
+        region[:, :, :H, W:] = Yh[0][:, :, 0, :, :]
+
+        # Place the vertical high-frequency subband in the bottom-left corner
+        region[:, :, H:, :W] = Yh[0][:, :, 1, :, :]
+
+        # Place the diagonal high-frequency subband in the bottom-right corner
+        region[:, :, H:, W:] = Yh[0][:, :, 2, :, :]
+
+        return region
+    
+
+    def inverse_wavelet_transform(self, h00):
+        """
+        使用逆小波变换将两次分解后的子带还原为原始图像。
+
+        参数:
+            h00: 包含两次小波分解结果的张量，形状 [B, C, H, W]
+
+        返回:
+            recons: 重建后的原始图像，形状与分解前相同
+        """
+        # 提取分辨率信息
+        B, C, H, W = h00.shape
+        H2, W2 = H // 2, W // 2  # 第一次分解的子带高度和宽度
+        H4, W4 = H2 // 2, W2 // 2  # 第二次分解的子带高度和宽度
+
+        # 提取第二次分解的低频和高频子带
+        Yl2 = h00[:, :, :H4, :W4]  # 左上角：最低频子带
+        Yh_lf = torch.zeros(B, C, 3, H4, W4, device=h00.device)  # 第二次分解的高频子带
+        Yh_lf[:, :, 0, :, :] = h00[:, :, :H4, W4:W2]  # 水平高频
+        Yh_lf[:, :, 1, :, :] = h00[:, :, H4:H2, :W4]  # 垂直高频
+        Yh_lf[:, :, 2, :, :] = h00[:, :, H4:H2, W4:W2]  # 对角线高频
+
+        # 使用逆小波变换恢复第一次分解的低频部分
+        Yl = self.idwt((Yl2, [Yh_lf]))
+
+        # 提取第一次分解的高频子带
+        Yh_hf = torch.zeros(B, C, 3, H2, W2, device=h00.device)  # 第一次分解的高频子带
+
+        # 水平高频部分（两次分解）
+        Yh_hf_l2 = h00[:, :, :H4, W2:W2 + W4]  # 水平高频的第二次分解
+        Yh_hf_hf = torch.zeros(B, C, 3, H4, W4, device=h00.device)
+        Yh_hf_hf[:, :, 0, :, :] = h00[:, :, :H4, W2 + W4:]  # 水平的水平高频
+        Yh_hf_hf[:, :, 1, :, :] = h00[:, :, H4:H2, W2:W2 + W4]  # 水平的垂直高频
+        Yh_hf_hf[:, :, 2, :, :] = h00[:, :, H4:H2, W2 + W4:]  # 水平的对角线高频
+        Yh_hf[:, :, 0, :, :] = self.idwt((Yh_hf_l2, [Yh_hf_hf]))  # 恢复水平高频
+
+        # 垂直高频部分（两次分解）
+        Yh_vf_l2 = h00[:, :, H2:H2 + H4, :W4]  # 垂直高频的第二次分解
+        Yh_vf_hf = torch.zeros(B, C, 3, H4, W4, device=h00.device)
+        Yh_vf_hf[:, :, 0, :, :] = h00[:, :, H2:H2 + H4, W4:W2]  # 垂直的水平高频
+        Yh_vf_hf[:, :, 1, :, :] = h00[:, :, H2 + H4:, :W4]  # 垂直的垂直高频
+        Yh_vf_hf[:, :, 2, :, :] = h00[:, :, H2 + H4:, W4:W2]  # 垂直的对角线高频
+        Yh_hf[:, :, 1, :, :] = self.idwt((Yh_vf_l2, [Yh_vf_hf]))  # 恢复垂直高频
+
+        # 对角线高频部分（两次分解）
+        Yh_df_l2 = h00[:, :, H2:H2 + H4, W2:W2 + W4]  # 对角线高频的第二次分解
+        Yh_df_hf = torch.zeros(B, C, 3, H4, W4, device=h00.device)
+        Yh_df_hf[:, :, 0, :, :] = h00[:, :, H2:H2 + H4, W2 + W4:]  # 对角线的水平高频
+        Yh_df_hf[:, :, 1, :, :] = h00[:, :, H2 + H4:, W2:W2 + W4]  # 对角线的垂直高频
+        Yh_df_hf[:, :, 2, :, :] = h00[:, :, H2 + H4:, W2 + W4:]  # 对角线的对角线高频
+        Yh_hf[:, :, 2, :, :] = self.idwt((Yh_df_l2, [Yh_df_hf]))  # 恢复对角线高频
+
+        # 使用第一次分解的低频和高频子带恢复原始图像
+        recons = self.idwt((Yl, [Yh_hf]))
+
+        return recons
+    
+    
  
 
-     def forward(self, x):
-        H, W = self.input_resolution
-        B, C, H, W = x.shape
-        L = H*W
+    def forward(self, input):
+
+        b, c, h, w = input.shape
+
+        input = self.norm1(input)
+
+        x1 = input
+        x2 = input
+
+        tepx2 = x2
+        # First wavelet decomposition
+        Yl, Yh = self.dwt(tepx2)  # Yl: First-level low-frequency, Yh[0]: First-level high-frequency
         
-
-        x = x.flatten(2).permute(0, 2, 1) + self.cpe1(x).flatten(2).permute(0, 2, 1)
-        shortcut = x
-        tepx = torch.fft.fft2(x.reshape(B, H, W, C).permute(0, 3, 1, 2).float())
-        fmt = self.relu(self.norm(torch.abs(torch.fft.ifft2(self.weight(tepx.real) * tepx)))).flatten(2).permute(0, 2, 1)
+        #rem = tepx2.size(2) % 4
         
+        tepx2 = F.pad(tepx2,(0,4,0,4),mode="reflect")
+        # Create the output tensor h00 with the same shape as the input x
+        h00 = torch.zeros_like(tepx2)
 
-        x_s = self.norm1(x)
-        act_res = self.act(self.act_proj(x_s))
-        x_s = self.in_proj(x_s).view(B, H, W, C)
-        x_s = self.act(self.dwc(x_s.permute(0, 3, 1, 2))).permute(0, 2, 3, 1).view(B, L, C)
+        # Perform another DWT on the first-level low-frequency Yl
+        Yl2, Yh_lf = self.dwt(Yl)
+        
+        # a = Yl.size(2) 
+        # b = Yl2.size(2)
+        # c = Yh_lf[0].size(3)
+        # print("a = " + str(Yl.size(2)) + "b = " + str(Yl2.size(2)) +"c = " + str(Yh_lf[0].size(3)))
+        HW = Yl.size(2)
+        h00[:, :, :HW, :HW] = self.combine_subbands(Yl2, Yh_lf)
 
-        # Linear Attention
-        x_s = self.attn_s(x_s)
+        # Perform another DWT on the first-level horizontal high-frequency Yh[0][:, :, 0]
+        Yl_hf, Yh_hf = self.dwt(Yh[0][:, :, 0, :, :])
+        # Yh[0][:, :, 0, :, :] = self.expand_to_match_dwt(Yh[0][:, :, 0, :, :])
 
-        x_s = self.out_proj(x_s * act_res)
-        x = shortcut + self.drop_path(x) + fmt
-        x = x + self.cpe2(x.reshape(B, H, W, C).permute(0, 3, 1, 2)).flatten(2).permute(0, 2, 1)
+        h00[:, :, :HW, HW:HW*2] = self.combine_subbands(Yl_hf, Yh_hf)
 
-        tepx = torch.fft.fft2(x.reshape(B, H, W, C).permute(0, 3, 1, 2).float())
-        fmt = self.relu(self.norm(torch.abs(torch.fft.ifft2(self.weight(tepx.real) * tepx)))).flatten(2).permute(0, 2, 1)
+        # Perform another DWT on the first-level vertical high-frequency Yh[0][:, :, 1]
+        Yl_vf, Yh_vf = self.dwt(Yh[0][:, :, 1, :, :])
+        #Yh[0][:, :, 1, :, :] = self.expand_to_match_dwt(Yh[0][:, :, 1, :, :])
 
-        # FFN
-        x = x + self.drop_path(self.mlp(self.norm2(x))) + fmt
-        x = x.reshape(B, H, W, C).permute(0, 3, 1, 2) # B C H W
-        x = self.project_out(x)
+        h00[:, :, HW:HW*2, :HW] = self.combine_subbands(Yl_vf, Yh_vf)
+
+        # Perform another DWT on the first-level diagonal high-frequency Yh[0][:, :, 2]
+        Yl_df, Yh_df = self.dwt(Yh[0][:, :, 2, :, :])
+        # Yh[0][:, :, 2, :, :] = self.expand_to_match_dwt(Yh[0][:, :, 2, :, :])
+
+        h00[:, :, Yl.size(2):HW*2, HW:HW*2] = self.combine_subbands(Yl_df, Yh_df)
+
+        
+        # print("h00")
+        # print(h00.shape)
+
+
+        h00 = rearrange(h00, "b c h w -> b h w c").contiguous()
+        h11 = h00+ self.drop_path(self.mambascan_f(h00))
+        h11 = rearrange(h11, "b h w c -> b c h w").contiguous()
+
+        # print("h11")
+        # print(h11.shape)
+
+        f_out = self.inverse_wavelet_transform(h11)
+        f_out = f_out[:,:,:h,:w].contiguous()
+        # print("fout")
+        # print(f_out.shape)
+
+        # f_x2 = torch.fft.fft2(x2.float())
+        # x_2_res = torch.abs(torch.fft.ifft2(self.weight(f_x2.real)*f_x2))
+
+        # f_x2 = rearrange(f_x2, "b c h w -> b h w c").contiguous()
+        # f_x2_o = self.drop_path(self.mambascan_f(f_x2.real))
+        # f_x2_o = rearrange(f_x2_o, "b h w c -> b c h w").contiguous()
+
+        # f_x2_o = torch.abs(torch.fft.ifft2(f_x2_o))
+        # f_out = self.catout(torch.cat((f_x2_o,x_2_res),1))
+
+        s_x1 = rearrange(x1, "b c h w -> b h w c").contiguous()
+        s_x1_o = self.drop_path(self.mambascan(s_x1))
+        s_x1_o = rearrange(s_x1_o, "b h w c -> b c h w").contiguous()
+        s_out = s_x1_o + x1
+
+        f_a = f_out.view(b, -1, c)
+        f_a = self.mlp(f_a)
+        f_a = f_a.view(b, c, h, w)
+
+        s_a = s_out.view(b, -1, c)
+        s_a = self.mlp(s_a)
+        s_a = s_a.view(b, c, h, w)
+
+        q_s = s_a
+        k_s = s_a
+        v_s = s_a
+
+        q_f = f_a
+        k_f = f_a
+        v_f = f_a
+
+        q_s = rearrange(q_s, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        k_s = rearrange(k_s, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        v_s = rearrange(v_s, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+
+        q_f = rearrange(q_f, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        k_f = rearrange(k_f, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        v_f = rearrange(v_f, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+
+        q_s = torch.nn.functional.normalize(q_s, dim=-1)
+        k_s = torch.nn.functional.normalize(k_s, dim=-1)
+
+        q_f = torch.nn.functional.normalize(q_f, dim=-1)
+        k_f = torch.nn.functional.normalize(k_f, dim=-1)
+
+        attn_s = (q_f @ k_s.transpose(-2, -1)) * self.temperature
+        attn_f = (q_s @ k_f.transpose(-2, -1)) * self.temperature
+
+        attn_s = attn_s.softmax(dim=-1)
+        attn_f = attn_f.softmax(dim=-1)
+
+        out_s = (attn_s @ v_s)
+        out_f = (attn_f @ v_s)
+
+        out_s = rearrange(out_s, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
+        out_f = rearrange(out_f, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
+
+        out = self.catout(torch.cat((out_s,out_f),1))
+
+        layer1 = out + input
+
+        x11 = self.norm1(layer1)
+        x22 = layer1 # B C H W
+        #  x = x*self.skip_scale2 + fft + self.hybridgate(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
+        x11 = self.ffn(x11)
+
+        # tepx22 = torch.fft.fft2(x22.float())
+        # x22 = torch.abs(torch.fft.ifft2(self.weight(tepx22.real)*tepx22))
+
+        out_final = x11
+        out_final = self.project_out(out_final)
+        
+        return out_final
+
+
+
+
+
+class ETB(nn.Module): # ETB (Entanglement Transformer Block)
+    def __init__(self, in_channel, out_channel):
+        super(ETB, self).__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channel, out_channel, 1), nn.BatchNorm2d(out_channel),nn.ReLU(True)
+        )
+        self.reduce  = nn.Sequential(
+            nn.Conv2d(out_channel*2, out_channel, 1),nn.BatchNorm2d(out_channel),nn.ReLU(True)
+        )
+        self.relu = nn.ReLU(True)
+        self.Module1 = Module1(dim=out_channel)
+
+    def forward(self, x):
+        x0 = self.conv1(x)
+        x_FT = self.Module1(x0)
+        x    = self.reduce(torch.cat((x0,x_FT),1))+x0
         return x
-
-     def extra_repr(self) -> str:
-        return f"dim={self.dim}, input_resolution={self.input_resolution}, num_heads={self.num_heads}, " \
-               f"mlp_ratio={self.mlp_ratio}"
-
-
-
-
-
 
 
 
@@ -760,6 +1207,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
         out_f_l_3 = torch.abs(torch.fft.ifft2(self.weight(tepqkv.real)*tepqkv))
         out_3 = self.project_out(torch.cat((out_f_3,out_f_l_3),1))
         F_3 = torch.add(out_3, conv3)
+
 
 
 
@@ -1257,27 +1705,3 @@ class DRP_3(nn.Module): # DRP (Dual-domain Reverse Parser)
         y = y + prior_cam + x1_prior_cam + x2_prior_cam
 
         return y
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -3,7 +3,7 @@ import timm
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, ETB , PFAFM , FSFMB, DRD_1, DRD_2, DRD_3
+from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM , PFAFM , FSFMB, DRD_1, DRD_2, DRD_3
 from transformers import AutoModel
 from PIL import Image
 from timm.data.transforms_factory import create_transform
@@ -23,7 +23,7 @@ class Network(nn.Module):
         self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-B-1K", trust_remote_code=True)
         
         base_d_state = 4
-        base_H_W = 13
+        base_H_W = 8
         # self.dePixelShuffle = torch.nn.PixelShuffle(2)
 
         # self.up = nn.Sequential(
@@ -47,30 +47,39 @@ class Network(nn.Module):
             nn.Conv2d(channels//4, channels, kernel_size=1),nn.BatchNorm2d(channels),
             nn.Conv2d(channels, channels, kernel_size=3, padding=1),nn.BatchNorm2d(channels),nn.ReLU(True)
         )
-
+        # def __init__(self, dim, out_channel , input_resolution, num_heads, mlp_ratio=4., qkv_bias=True, drop=0., drop_path=0.,
+        #          act_layer=nn.GELU, norm_layer=nn.LayerNorm, **kwargs):
         self.FSFMB_5 = FSFMB(
-                hidden_dim=int(1024+channels),
+                dim=int(1024+channels),
                 out_channel=channels,
-                norm_layer=nn.LayerNorm,
-                H_W = base_H_W,
+                input_resolution = (base_H_W,base_H_W),
+                mlp_ratio=4,
+                num_heads = 16,
+                sr_ratio=1,
             )
         self.FSFMB_4 = FSFMB(
-                hidden_dim=int(512+channels),
+                dim=int(512+channels),
                 out_channel=channels,
-                norm_layer=nn.LayerNorm,
-                H_W = base_H_W*2,
+                input_resolution = (base_H_W*2,base_H_W*2),
+                mlp_ratio=4,
+                num_heads = 10,
+                sr_ratio=1,
             )
         self.FSFMB_3 = FSFMB(
-                hidden_dim=int(256+channels),
+                dim=int(256+channels),
                 out_channel=channels,
-                norm_layer=nn.LayerNorm,
-                H_W = base_H_W*4,
+                input_resolution = (base_H_W*4,base_H_W*4),
+                mlp_ratio=8,
+                num_heads = 4,
+                sr_ratio=1,
             )
         self.FSFMB_2 = FSFMB(
-                hidden_dim=int(128+channels),
+                dim=int(128+channels),
                 out_channel=channels,
-                norm_layer=nn.LayerNorm,
-                H_W = base_H_W*8,
+                input_resolution = (base_H_W*8,base_H_W*8),
+                mlp_ratio=8,
+                num_heads = 2,
+                sr_ratio = 1,
             )
 
         # self.ETB_5 = ETB(1024+channels, channels)
@@ -84,9 +93,9 @@ class Network(nn.Module):
         # self.DRP_2 = DRP_2(channels, channels)
         # self.DRP_3 = DRP_3(channels,channels)
 
-        self.DRD_1 = DRD_1(channels, channels)
-        self.DRD_2 = DRD_2(channels, channels)
-        self.DRD_3 = DRD_3(channels,channels)
+        self.DRP_1 = DRP_1(channels, channels)
+        self.DRP_2 = DRP_2(channels, channels)
+        self.DRP_3 = DRP_3(channels,channels)
 
 
     def forward(self, x):
@@ -135,10 +144,10 @@ class Network(nn.Module):
         x1   = self.FSFMB_2(torch.cat((x1,x2_up),1))
 
 
-        x4 = self.DRD_1(x4,x5_4)
-        x3 = self.DRD_1(x3,x4)
-        x2 = self.DRD_2(x2,x3,x4)
-        x1 = self.DRD_3(x1,x2,x3,x4)
+        x4 = self.DRP_1(x4,x5_4)
+        x3 = self.DRP_1(x3,x4)
+        x2 = self.DRP_2(x2,x3,x4)
+        x1 = self.DRP_3(x1,x2,x3,x4)
 
 
         p0 = F.interpolate(p1, size=image.size()[2:], mode='bilinear', align_corners=True)
