@@ -1,6 +1,6 @@
 import os, argparse
 import cv2
-from lib.Network_PVT import Network
+from lib.Network_VIM_train import Network
 import torch
 from thop import profile
 
@@ -8,7 +8,7 @@ from thop import profile
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 print('==> Building model..')
-input_features = torch.randn(1, 3, 416, 416)
+input_features = torch.randn(1, 3, 384, 384)
 model = Network(128)
 
 flops, params = profile(model, (input_features,))

@@ -447,7 +447,7 @@ class LinearAttention(nn.Module):
         self.elu = nn.ELU()
         self.lepe = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
         self.rope = RoPE(shape=(input_resolution[0], input_resolution[1], dim))
-        self.rope2 = RoPE(shape=(input_resolution[0]//2, input_resolution[1]//2, dim))
+        self.rope2 = RoPE(shape=(input_resolution[0]//(sr_ratio*2), input_resolution[1]//(sr_ratio*2), dim))
         self.dwt = DWTForward(J=1, mode='zero', wave='haar')
         self.idwt = DWTInverse(mode='zero', wave='haar')
 
@@ -515,7 +515,7 @@ class LinearAttention(nn.Module):
         q = self.elu(q) + 1.0
         k = self.elu(k) + 1.0
         q_rope = self.rope(q.reshape(b, h, w, c)).reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
-        k_rope = self.rope2(k.reshape(b, h//2, w//2, c)).reshape(b, -1, num_heads, head_dim).permute(0, 2, 1, 3)
+        k_rope = self.rope2(k.reshape(b, h//(self.sr_ratio*2), w//(self.sr_ratio*2), c)).reshape(b, -1, num_heads, head_dim).permute(0, 2, 1, 3)
         q = q.reshape(b, n, num_heads, head_dim).permute(0, 2, 1, 3)
         k = k.reshape(b, -1, num_heads, head_dim).permute(0, 2, 1, 3)
         v = v.reshape(b, -1, num_heads, head_dim).permute(0, 2, 1, 3)
@@ -579,10 +579,15 @@ class FSFMB(nn.Module):
 
         self.relu = nn.ReLU(True)
         
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(dim, out_channel, 1), nn.BatchNorm2d(out_channel),nn.ReLU(True)
+        )
 
         self.temperature = nn.Parameter(torch.ones(self.num_heads, 1, 1))
         self.ffn = FeedForward(dim, 4, False)
-        
+        self.reduce  = nn.Sequential(
+            nn.Conv2d(out_channel*2, out_channel, 1),nn.BatchNorm2d(out_channel),nn.ReLU(True)
+        )
 
  
 
@@ -590,6 +595,7 @@ class FSFMB(nn.Module):
         H, W = self.input_resolution
         B, C, H, W = x.shape
         L = H*W
+        x_0 = self.conv1(x)
         
 
         x = x.flatten(2).permute(0, 2, 1) + self.cpe1(x).flatten(2).permute(0, 2, 1)
@@ -614,9 +620,12 @@ class FSFMB(nn.Module):
         fmt = self.relu(self.norm(torch.abs(torch.fft.ifft2(self.weight(tepx.real) * tepx)))).flatten(2).permute(0, 2, 1)
 
         # FFN
-        x = x + self.drop_path(self.mlp(self.norm2(x))) + fmt
+        x = x + self.drop_path(self.ffn(self.norm2(x).reshape(B, H, W, C).permute(0, 3, 1, 2))).flatten(2).permute(0, 2, 1) + fmt
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2) # B C H W
         x = self.project_out(x)
+
+        x    = self.reduce(torch.cat((x_0,x),1))+x_0
+
         return x
 
      def extra_repr(self) -> str:

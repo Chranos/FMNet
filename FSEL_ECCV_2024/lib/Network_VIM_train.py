@@ -23,7 +23,7 @@ class Network(nn.Module):
         self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-B-1K", trust_remote_code=True)
         
         base_d_state = 4
-        base_H_W = 8
+        base_H_W = 12
         # self.dePixelShuffle = torch.nn.PixelShuffle(2)
 
         # self.up = nn.Sequential(
