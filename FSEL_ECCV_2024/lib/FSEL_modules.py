@@ -483,20 +483,10 @@ class LinearAttention(nn.Module):
         x_dwt = torch.cat([x_dwtl,x_dwth[0][:,:,0,:,:],x_dwth[0][:,:,1,:,:],x_dwth[0][:,:,2,:,:]],dim = 1)
         x_dwt = self.filter(x_dwt)#B C H W
 
-        # 假设 x_dwt 的形状为 [B, 4*C, H, W]
-        B, C, H, W = x_dwt.shape
-        C = C // 4  # 每个分量的通道数
-
-        # 将 x_dwt 拆分为低频和高频分量
-        yl = x_dwt[:, :C, :, :]  # 低频分量 (LL)
-        yh = [torch.stack([
-            x_dwt[:, C:C*2, :, :],  # 高频水平 (LH)
-            x_dwt[:, C*2:C*3, :, :],  # 高频垂直 (HL)
-            x_dwt[:, C*3:, :, :]  # 高频对角线 (HH)
-        ], dim=2)]  # 将 3 个高频分量堆叠为 [B, C, 3, H, W] 的格式
+        
 
         # 使用 IDWT 还原
-        x_idwt = self.idwt((yl, yh))  # x_idwt 的形状为 [B, C, 2*H, 2*W]
+        x_idwt = self.idwt((x_dwtl, x_dwth))  # x_idwt 的形状为 [B, C, 2*H, 2*W]
         x_idwt = x_idwt.view(b, -1, x_idwt.size(-2)*x_idwt.size(-1)).permute(0, 2, 1)
 
         # k = self.k(x_dwt.flatten(2).permute(0, 2, 1))
