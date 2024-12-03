@@ -656,7 +656,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv2 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=3, padding=3), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(in_dim, down_dim, kernel_size=3, dilation=3, padding=3), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv2 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv2 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -665,7 +665,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv3 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=5, padding=5), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(in_dim, down_dim, kernel_size=3, dilation=5, padding=5), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv3 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv3 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -674,7 +674,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv4 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=7, padding=7), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(in_dim, down_dim, kernel_size=3, dilation=7, padding=7), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv4 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv4 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -682,7 +682,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
         self.gamma4 = nn.Parameter(torch.zeros(1))
 
         self.conv5 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=9, padding=9), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(in_dim, down_dim, kernel_size=3, dilation=9, padding=9), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv5 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv5 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -724,7 +724,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
         conv1 = self.conv1(x)
 
        
-        conv2 = self.conv2(conv1)
+        conv2 = self.conv2(x)
         b, c, h, w = conv2.shape
 
         q_f_2 = torch.fft.fft2(conv2.float())
@@ -748,7 +748,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
 
-        conv3 = self.conv3(conv1+F_2)
+        conv3 = self.conv3(x+F_2)
         b, c, h, w = conv3.shape
 
         q_f_3 = torch.fft.fft2(conv3.float())
@@ -772,7 +772,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
 
-        conv4 = self.conv4(conv1+F_3)
+        conv4 = self.conv4(x+F_3)
         b, c, h, w = conv4.shape
 
         q_f_4 = torch.fft.fft2(conv4.float())
@@ -794,7 +794,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
         out_4 = self.project_out(torch.cat((out_f_4,out_f_l_4),1))
         F_4 = torch.add(out_4, conv4)
 
-        conv5 = self.conv5(conv1+F_4)
+        conv5 = self.conv5(x+F_4)
         b, c, h, w = conv5.shape
 
         q_f_5 = torch.fft.fft2(conv5.float())
