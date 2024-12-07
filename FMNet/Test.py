@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 import os, argparse
 import cv2
-from lib.Network_VIM_test import Network
+from lib.FMNet_test import Network
 from utils.data_val import test_dataset
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'

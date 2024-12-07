@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 from datetime import datetime
 from torchvision.utils import make_grid
-from lib.Network_ResNet import Network
+from lib.FMNet_train import Network
 
 from utils.data_val import get_loader, test_dataset
 from utils.utils import clip_gradient, adjust_lr, get_coef,cal_ual
@@ -12,6 +12,8 @@ from tensorboardX import SummaryWriter
 import logging
 import torch.backends.cudnn as cudnn
 from torch import optim
+from thop import profile
+from ptflops import get_model_complexity_info
 
 
 def structure_loss(pred, mask):
@@ -48,6 +50,8 @@ def train(train_loader, model, optimizer, epoch, save_path, writer):
             images = images.cuda(device=device_ids[0])
             gts = gts.cuda(device=device_ids[0])
             #edges = edges.cuda(device=device_ids[0])
+
+
 
             preds = model(images)
 
@@ -154,13 +158,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--epoch', type=int, default=180, help='epoch number')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
-    parser.add_argument('--batchsize', type=int, default=40, help='training batch size')
+    parser.add_argument('--batchsize', type=int, default=8, help='training batch size')
     parser.add_argument('--trainsize', type=int, default=416, help='training dataset size')
     parser.add_argument('--clip', type=float, default=0.5, help='gradient clipping margin')
     parser.add_argument('--decay_rate', type=float, default=0.1, help='decay rate of learning rate')
     parser.add_argument('--decay_epoch', type=int, default=60, help='every n epochs decay learning rate')
     parser.add_argument('--load', type=str, default=None, help='train from checkpoints')
-    parser.add_argument('--gpu_id', type=str, default='0,1,2,3', help='train use gpu')
+    parser.add_argument('--gpu_id', type=str, default='0,1', help='train use gpu')
     parser.add_argument('--train_root', type=str, default='',
                         help='the training rgb images root')
     parser.add_argument('--val_root', type=str, default='',
@@ -170,31 +174,36 @@ if __name__ == '__main__':
 
 
     os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu_id
-    print('USE GPU 0,1,2,3')
+    #print('USE GPU 0,1,2,3')
     cudnn.benchmark = True
 
     # build the model
-    device_ids = [0,1,2,3] # if you want to use more gpus than 2, you shoule change it just like when use opt.gpu_id='1,2,6,8' , device_ids = [0,1,2,3]
+    device_ids = [0,1] # if you want to use more gpus than 2, you shoule change it just like when use opt.gpu_id='1,2,6,8' , device_ids = [0,1,2,3]
     model = torch.nn.DataParallel(Network(channels=128), device_ids=device_ids)
     model = model.cuda(device=device_ids[0])
 
-    if opt.load is not None:
-        model.load_state_dict(torch.load(opt.load))
-        print('load model from ', opt.load)
+    
+    # # 计算 FLOPs 和参数数量
+    # with torch.cuda.device(0):  # 指定 GPU（如果有）
+    #     flops, params = get_model_complexity_info(model, (3, 32, 32), as_strings=True, print_per_layer_stat=True)
+    #     print(f"FLOPs: {flops}")
+    #     print(f"Params: {params}")
+
+    # if opt.load is not None:
+    #     model.load_state_dict(torch.load(opt.load))
+    #     print('load model from ', opt.load)
 
     optimizer = torch.optim.Adam(model.parameters(), opt.lr)
     save_path = opt.save_path
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-
-    # load data
-    print('load data...')
+    
     train_loader = get_loader(image_root=opt.train_root + 'Imgs/',
                               gt_root=opt.train_root + 'GT/',
                               edge_root=opt.train_root + 'Edge/',
                               batchsize=opt.batchsize,
                               trainsize=opt.trainsize,
-                              num_workers=8)
+                              num_workers=16)
     val_loader = test_dataset(image_root=opt.val_root + 'Imgs/',
                               gt_root=opt.val_root + 'GT/',
                               testsize=opt.trainsize)
