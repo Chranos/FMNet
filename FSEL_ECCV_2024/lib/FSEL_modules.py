@@ -581,6 +581,39 @@ class LinearAttention(nn.Module):
         num_heads = self.num_heads
         head_dim = c // num_heads
 
+        # q = self.q(x)
+
+        # # x = torch.cat([x_ll, x_lh, x_hl, x_hh], dim=1)
+        # x_dwtl,x_dwth = self.dwt(self.reduce(x.reshape(b, h, w, c).permute(0, 3, 1, 2)))
+        # # 将高频分量拆分为水平、垂直、对角线
+        # x_dwt = torch.cat([x_dwtl,x_dwth[0][:,:,0,:,:],x_dwth[0][:,:,1,:,:],x_dwth[0][:,:,2,:,:]],dim = 1)
+        # x_dwt = self.filter(x_dwt)#B C H W
+
+        # # 假设 x_dwt 的形状为 [B, 4*C, H, W]
+        # B, C, H, W = x_dwt.shape
+        # C = C // 4  # 每个分量的通道数
+
+        # # 将 x_dwt 拆分为低频和高频分量
+        # yl = x_dwt[:, :C, :, :]  # 低频分量 (LL)
+        # yh = [torch.stack([
+        #     x_dwt[:, C:C*2, :, :],  # 高频水平 (LH)
+        #     x_dwt[:, C*2:C*3, :, :],  # 高频垂直 (HL)
+        #     x_dwt[:, C*3:, :, :]  # 高频对角线 (HH)
+        # ], dim=2)]  # 将 3 个高频分量堆叠为 [B, C, 3, H, W] 的格式
+
+        # # 使用 IDWT 还原
+        # x_idwt = self.idwt((yl, yh))  # x_idwt 的形状为 [B, C, 2*H, 2*W]
+        # x_idwt = x_idwt.view(b, -1, x_idwt.size(-2)*x_idwt.size(-1)).permute(0, 2, 1)
+
+        # # k = self.k(x_dwt.flatten(2).permute(0, 2, 1))
+
+        # kv = self.kv_embed(x_dwt).reshape(b, c, -1).permute(0, 2, 1)
+        
+        # k = self.k(kv)
+        # v = kv
+        # vv = self.v(x)
+        
+
         qk = self.qk(x).reshape(b, n, 2, c).permute(2, 0, 1, 3)
         q, k, v = qk[0], qk[1], x
         # q, k, v: b, n, c
@@ -748,7 +781,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv2 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=3, padding=3), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(in_dim, down_dim, kernel_size=3, dilation=3, padding=3), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv2 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv2 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -757,7 +790,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv3 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=5, padding=5), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(in_dim, down_dim, kernel_size=3, dilation=5, padding=5), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv3 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv3 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -766,7 +799,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
         self.conv4 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=7, padding=7), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(in_dim, down_dim, kernel_size=3, dilation=7, padding=7), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv4 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv4 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
@@ -774,7 +807,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
         self.gamma4 = nn.Parameter(torch.zeros(1))
 
         self.conv5 = nn.Sequential(
-            nn.Conv2d(down_dim, down_dim, kernel_size=3, dilation=9, padding=9), nn.BatchNorm2d(down_dim), nn.ReLU(True)
+            nn.Conv2d(in_dim, down_dim, kernel_size=3, dilation=9, padding=9), nn.BatchNorm2d(down_dim), nn.ReLU(True)
         )
         self.query_conv5 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
         self.key_conv5 = nn.Conv2d(in_channels=down_dim, out_channels=down_dim//8, kernel_size=1)
