@@ -20,10 +20,10 @@ class Network(nn.Module):
     def __init__(self, channels=128):
         super(Network, self).__init__()
        # self.shared_encoder = timm.create_model(model_name="resnet50", pretrained=False, in_chans=3, features_only=True)
-        self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-B-1K", trust_remote_code=True)
+        self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-S-1K", trust_remote_code=True)
         
         base_d_state = 4
-        base_H_W = 12
+        base_H_W = 13
         # self.dePixelShuffle = torch.nn.PixelShuffle(2)
 
         # self.up = nn.Sequential(
@@ -50,35 +50,35 @@ class Network(nn.Module):
         # def __init__(self, dim, out_channel , input_resolution, num_heads, mlp_ratio=4., qkv_bias=True, drop=0., drop_path=0.,
         #          act_layer=nn.GELU, norm_layer=nn.LayerNorm, **kwargs):
         self.FSFMB_5 = FSFMB(
-                dim=int(1024+channels),
+                dim=int(512+channels),
                 out_channel=channels,
                 input_resolution = (base_H_W,base_H_W),
                 mlp_ratio=4,
-                num_heads = 16,
+                num_heads = 8,
                 sr_ratio=1,
             )
         self.FSFMB_4 = FSFMB(
-                dim=int(512+channels),
+                dim=int(256+channels),
                 out_channel=channels,
                 input_resolution = (base_H_W*2,base_H_W*2),
                 mlp_ratio=4,
-                num_heads = 10,
+                num_heads = 8,
                 sr_ratio=1,
             )
         self.FSFMB_3 = FSFMB(
-                dim=int(256+channels),
+                dim=int(128+channels),
                 out_channel=channels,
                 input_resolution = (base_H_W*4,base_H_W*4),
                 mlp_ratio=8,
-                num_heads = 4,
+                num_heads = 8,
                 sr_ratio=1,
             )
         self.FSFMB_2 = FSFMB(
-                dim=int(128+channels),
+                dim=int(64+channels),
                 out_channel=channels,
                 input_resolution = (base_H_W*8,base_H_W*8),
                 mlp_ratio=8,
-                num_heads = 2,
+                num_heads = 8,
                 sr_ratio = 1,
             )
 
@@ -87,7 +87,7 @@ class Network(nn.Module):
         # self.ETB_3 = ETB(256+channels, channels)
         # self.ETB_2 = ETB(128+channels, channels)
 
-        self.PFAFM = PFAFM(1024, channels)
+        self.PFAFM = PFAFM(512, channels)
 
         # self.DRP_1 = DRP_1(channels, channels)
         # self.DRP_2 = DRP_2(channels, channels)

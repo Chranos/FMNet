@@ -1,6 +1,6 @@
 import os, argparse
 import cv2
-from lib.Network_VIM_train import Network
+from lib.Network_VIM_test import Network
 import torch
 from thop import profile
 
@@ -8,11 +8,11 @@ from thop import profile
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 print('==> Building model..')
-input_features = torch.randn(1, 3, 384, 384)
+input_features = torch.randn(1, 3, 416, 416)
 model = Network(128)
+# 统计参数数量
+total_params = sum(p.numel() for p in model.parameters())
+print(f"Total number of parameters: {total_params}")
 
-flops, params = profile(model, (input_features,))
-print('flops: ', flops, 'params: ', params)
-print('flops: %.2f G, params: %.2f M' % (flops / 1000000000.0, params / 1000000.0))
 
 

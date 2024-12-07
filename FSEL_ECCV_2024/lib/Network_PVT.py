@@ -16,7 +16,7 @@ class Network(nn.Module):
     def __init__(self, channels=128):
         super(Network, self).__init__()
         self.shared_encoder = pvt_v2_b4()
-        pretrained_dict = torch.load('/workspace/CODlab/Pths/pvt_v2_b4.pth')
+        pretrained_dict = torch.load('/workspace/codlab/pth/mask_rcnn_pvt_v2_b4_fpn_1x_coco.pth')
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in self.shared_encoder.state_dict()}
         self.shared_encoder.load_state_dict(pretrained_dict)
        

@@ -3,7 +3,7 @@ import timm
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, PFAFM
+from lib.FSEL_modules import DRP_1, DRP_2, DRP_3, JDPM, PFAFM, FSFMB
 from transformers import AutoModel
 from PIL import Image
 from timm.data.transforms_factory import create_transform
@@ -20,39 +20,78 @@ class Network(nn.Module):
     def __init__(self, channels=128):
         super(Network, self).__init__()
        # self.shared_encoder = timm.create_model(model_name="resnet50", pretrained=False, in_chans=3, features_only=True)
-        self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-B-1K", trust_remote_code=True)
+        self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-S-1K", trust_remote_code=True)
         
         base_d_state = 4
+        base_H_W = 13
         # self.dePixelShuffle = torch.nn.PixelShuffle(2)
 
+        # # self.up = nn.Sequential(
+        # #     nn.Conv2d(channels//4, channels, kernel_size=1),nn.BatchNorm2d(channels),
+        # #     nn.Conv2d(channels, channels, kernel_size=3, padding=1),nn.BatchNorm2d(channels),nn.ReLU(True)
+        # # )
+        # # self.channel = channels
+        # # self.ETB_5 = ETB(2048+channels, channels)
+        # # self.ETB_4 = ETB(1024+channels, channels)
+        # # self.ETB_3 = ETB(512+channels, channels)
+        # # self.ETB_2 = ETB(256+channels, channels)
+
+        # # self.JDPM = JDPM(2048, channels)
+
+        # # self.DRP_1 = DRP_1(channels, channels)
+        # # self.DRP_2 = DRP_2(channels, channels)
+        # # self.DRP_3 = DRP_3(channels,channels)
+        # self.dePixelShuffle = torch.nn.PixelShuffle(2)
+       
         # self.up = nn.Sequential(
         #     nn.Conv2d(channels//4, channels, kernel_size=1),nn.BatchNorm2d(channels),
         #     nn.Conv2d(channels, channels, kernel_size=3, padding=1),nn.BatchNorm2d(channels),nn.ReLU(True)
         # )
-        # self.channel = channels
-        # self.ETB_5 = ETB(2048+channels, channels)
-        # self.ETB_4 = ETB(1024+channels, channels)
-        # self.ETB_3 = ETB(512+channels, channels)
-        # self.ETB_2 = ETB(256+channels, channels)
+        # # def __init__(self, dim, out_channel , input_resolution, num_heads, mlp_ratio=4., qkv_bias=True, drop=0., drop_path=0.,
+        # #          act_layer=nn.GELU, norm_layer=nn.LayerNorm, **kwargs):
+        # self.FSFMB_5 = FSFMB(
+        #         dim=int(512+channels),
+        #         out_channel=channels,
+        #         input_resolution = (base_H_W,base_H_W),
+        #         mlp_ratio=4,
+        #         num_heads = 16,
+        #         sr_ratio=1,
+        #     )
+        # self.FSFMB_4 = FSFMB(
+        #         dim=int(256+channels),
+        #         out_channel=channels,
+        #         input_resolution = (base_H_W*2,base_H_W*2),
+        #         mlp_ratio=4,
+        #         num_heads = 10,
+        #         sr_ratio=1,
+        #     )
+        # self.FSFMB_3 = FSFMB(
+        #         dim=int(128+channels),
+        #         out_channel=channels,
+        #         input_resolution = (base_H_W*4,base_H_W*4),
+        #         mlp_ratio=8,
+        #         num_heads = 4,
+        #         sr_ratio=1,
+        #     )
+        # self.FSFMB_2 = FSFMB(
+        #         dim=int(64+channels),
+        #         out_channel=channels,
+        #         input_resolution = (base_H_W*8,base_H_W*8),
+        #         mlp_ratio=8,
+        #         num_heads = 2,
+        #         sr_ratio = 1,
+        #     )
 
-        # self.JDPM = JDPM(2048, channels)
+        # # self.ETB_5 = ETB(1024+channels, channels)
+        # # self.ETB_4 = ETB(512+channels, channels)
+        # # self.ETB_3 = ETB(256+channels, channels)
+        # # self.ETB_2 = ETB(128+channels, channels)
 
-        # self.DRP_1 = DRP_1(channels, channels)
-        # self.DRP_2 = DRP_2(channels, channels)
-        # self.DRP_3 = DRP_3(channels,channels)
-        self.dePixelShuffle = torch.nn.PixelShuffle(2)
-       
-        self.up = nn.Sequential(
-            nn.Conv2d(channels//4, channels, kernel_size=1),nn.BatchNorm2d(channels),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1),nn.BatchNorm2d(channels),nn.ReLU(True)
-        )
+        # self.PFAFM = PFAFM(512, channels)
 
-        self.ETB_5 = ETB(1024+channels, channels)
-        self.ETB_4 = ETB(512+channels, channels)
-        self.ETB_3 = ETB(256+channels, channels)
-        self.ETB_2 = ETB(128+channels, channels)
-
-        self.PFAFM = PFAFM(1024, channels)
+        # # self.DRP_1 = DRP_1(channels, channels)
+        # # self.DRP_2 = DRP_2(channels, channels)
+        # # self.DRP_3 = DRP_3(channels,channels)
 
         self.DRP_1 = DRP_1(channels, channels)
         self.DRP_2 = DRP_2(channels, channels)
@@ -85,22 +124,23 @@ class Network(nn.Module):
         # model inference
         out_avg_pool, en_feats = model(image)
         x1, x2, x3, x4 = en_feats
-        
+
+
         p1 = self.PFAFM(x4)
         x5_4 = p1
         x5_4_1 = x5_4.expand(-1, 128, -1, -1)
 
-        x4   = self.ETB_5(torch.cat((x4,x5_4_1),1))
+        x4   = self.FSFMB_5(torch.cat((x4,x5_4_1),1))
         x4_up = self.up(self.dePixelShuffle(x4))
 
-        x3   = self.ETB_4(torch.cat((x3,x4_up),1))
+        x3   = self.FSFMB_4(torch.cat((x3,x4_up),1))
         x3_up = self.up(self.dePixelShuffle(x3))
 
-        x2   = self.ETB_3(torch.cat((x2,x3_up),1))
+        x2   = self.FSFMB_3(torch.cat((x2,x3_up),1))
         x2_up = self.up(self.dePixelShuffle(x2))
 
 
-        x1   = self.ETB_2(torch.cat((x1,x2_up),1))
+        x1   = self.FSFMB_2(torch.cat((x1,x2_up),1))
 
 
         x4 = self.DRP_1(x4,x5_4)

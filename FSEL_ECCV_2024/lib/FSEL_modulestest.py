@@ -620,14 +620,10 @@ class FSFMB(nn.Module):
         self.cpe1 = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
         self.norm1 = norm_layer(dim)
         self.in_proj = nn.Linear(dim, dim)
-        self.in_proj2 = nn.Linear(dim // 2, dim // 2)
         self.act_proj = nn.Linear(dim, dim)
         self.dwc = nn.Conv2d(dim, dim, 3, padding=1, groups=dim)
-        self.dwc2 = nn.Conv2d(dim // 2, dim // 2, 3, padding=1, groups=dim //2)
         self.act = nn.SiLU()
         self.attn_s = LinearAttention_B(dim=dim, input_resolution=input_resolution, num_heads=num_heads, qkv_bias=qkv_bias, sr_ratio=sr_ratio)
-        self.attn = LinearAttention_B(dim=dim // 2, input_resolution=input_resolution, num_heads=num_heads, qkv_bias=qkv_bias, sr_ratio=sr_ratio)
-        
         self.out_proj = nn.Linear(dim, dim)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
@@ -660,7 +656,7 @@ class FSFMB(nn.Module):
         )
 
         self.temperature = nn.Parameter(torch.ones(self.num_heads, 1, 1))
-        self.ffn = Mlp(dim, 4, False)
+        self.ffn = FeedForward(dim, 4, False)
         self.reduce  = nn.Sequential(
             nn.Conv2d(out_channel*2, out_channel, 1),nn.BatchNorm2d(out_channel),nn.ReLU(True)
         )
@@ -693,10 +689,10 @@ class FSFMB(nn.Module):
         x_s3 = self.dwconv_3(x_s.reshape(B, H, W, C).permute(0, 3, 1, 2)).flatten(2).permute(0, 2, 1)
         x_s5 = self.dwconv_5(x_s.reshape(B, H, W, C).permute(0, 3, 1, 2)).flatten(2).permute(0, 2, 1)
         act_res = self.act(self.act_proj(x_s))
-        x_s3 = self.in_proj2(x_s3).view(B, H, W, C // 2)
-        x_s3 = self.act(self.dwc2(x_s3.permute(0, 3, 1, 2))).permute(0, 2, 3, 1).view(B, L, C // 2)
-        x_s5 = self.in_proj2(x_s5).view(B, H, W, C // 2)
-        x_s5 = self.act(self.dwc2(x_s5.permute(0, 3, 1, 2))).permute(0, 2, 3, 1).view(B, L, C // 2)
+        x_s3 = self.in_proj(x_s3).view(B, H, W, C // 2)
+        x_s3 = self.act(self.dwc(x_s3.permute(0, 3, 1, 2))).permute(0, 2, 3, 1).view(B, L, C // 2)
+        x_s5 = self.in_proj(x_s5).view(B, H, W, C // 2)
+        x_s5 = self.act(self.dwc(x_s5.permute(0, 3, 1, 2))).permute(0, 2, 3, 1).view(B, L, C // 2)
 
 
         # Linear Attention
@@ -809,14 +805,14 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
         self.softmax = Softmax(dim=-1)
         self.norm = nn.BatchNorm2d(down_dim)
         self.relu = nn.ReLU(True)
-        self.num_heads = 8
+        self.num_heads = 16
 
     def forward(self, x):
         x = self.down_conv(x)
         conv1 = self.conv1(x)
 
        
-        conv2 = self.conv2(x)
+        conv2 = self.conv2(conv1)
         b, c, h, w = conv2.shape
 
         q_f_2 = torch.fft.fft2(conv2.float())
@@ -840,7 +836,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
 
-        conv3 = self.conv3(x+F_2)
+        conv3 = self.conv3(conv1+F_2)
         b, c, h, w = conv3.shape
 
         q_f_3 = torch.fft.fft2(conv3.float())
@@ -864,7 +860,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
 
 
 
-        conv4 = self.conv4(x+F_3)
+        conv4 = self.conv4(conv1+F_3)
         b, c, h, w = conv4.shape
 
         q_f_4 = torch.fft.fft2(conv4.float())
@@ -886,7 +882,7 @@ class PFAFM(nn.Module): # Pyramid Frequency Attention Fusion Module
         out_4 = self.project_out(torch.cat((out_f_4,out_f_l_4),1))
         F_4 = torch.add(out_4, conv4)
 
-        conv5 = self.conv5(x+F_4)
+        conv5 = self.conv5(conv1+F_4)
         b, c, h, w = conv5.shape
 
         q_f_5 = torch.fft.fft2(conv5.float())
@@ -1023,7 +1019,7 @@ class DRD_1(nn.Module): # DRP (Dual-domain Reverse Parser)
         self.relu = nn.ReLU(in_channels)
 
     def forward(self, X, prior_cam):
-        prior_cam = F.interpolate(prior_cam, size=X.size()[2:], mode='bilinear',align_corners=True)# B C H W
+        prior_cam = F.interpolate(prior_cam, size=X.size()[2:], mode='bilinear',align_corners=True)
 
         FI  = X
 

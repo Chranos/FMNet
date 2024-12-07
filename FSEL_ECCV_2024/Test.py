@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 import os, argparse
 import cv2
-from lib.Network_ResNet import Network
+from lib.Network_VIM_test import Network
 from utils.data_val import test_dataset
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
@@ -14,9 +14,9 @@ parser.add_argument('--pth_path', type=str, default='')
 parser.add_argument('--test_dataset_path', type=str, default='')
 opt = parser.parse_args()
 
-for _data_name in ['CHAMELEON','CAMO','NC4K','COD10K']:
+for _data_name in ['CAMO']:
     data_path = opt.test_dataset_path+'/{}/'.format(_data_name)
-    save_path = './Our_ResNet/{}_3/{}/'.format(opt.pth_path.split('/')[-2], _data_name)
+    save_path = '/workspace/codlab/codre/{}_3/{}/'.format(opt.pth_path.split('/')[-2], _data_name)
     os.makedirs(save_path, exist_ok=True)
 
     model = Network(channels=128)

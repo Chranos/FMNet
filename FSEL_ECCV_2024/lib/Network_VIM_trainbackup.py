@@ -20,7 +20,7 @@ class Network(nn.Module):
     def __init__(self, channels=128):
         super(Network, self).__init__()
        # self.shared_encoder = timm.create_model(model_name="resnet50", pretrained=False, in_chans=3, features_only=True)
-        self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-B-1K", trust_remote_code=True)
+        self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-S-1K", trust_remote_code=True)
         
         base_d_state = 4
         base_H_W = 13
@@ -53,24 +53,28 @@ class Network(nn.Module):
                 out_channel=channels,
                 norm_layer=nn.LayerNorm,
                 H_W = base_H_W,
+                num_heads=8,
             )
         self.FSFMB_4 = FSFMB(
                 hidden_dim=int(512+channels),
                 out_channel=channels,
                 norm_layer=nn.LayerNorm,
                 H_W = base_H_W*2,
+                num_heads=8,
             )
         self.FSFMB_3 = FSFMB(
                 hidden_dim=int(256+channels),
                 out_channel=channels,
                 norm_layer=nn.LayerNorm,
                 H_W = base_H_W*4,
+                num_heads=8,
             )
         self.FSFMB_2 = FSFMB(
                 hidden_dim=int(128+channels),
                 out_channel=channels,
                 norm_layer=nn.LayerNorm,
                 H_W = base_H_W*8,
+                num_heads=8,
             )
 
         # self.ETB_5 = ETB(1024+channels, channels)

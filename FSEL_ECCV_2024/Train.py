@@ -14,6 +14,8 @@ from tensorboardX import SummaryWriter
 import logging
 import torch.backends.cudnn as cudnn
 from torch import optim
+from thop import profile
+from ptflops import get_model_complexity_info
 
 
 def structure_loss(pred, mask):
@@ -50,6 +52,8 @@ def train(train_loader, model, optimizer, epoch, save_path, writer):
             images = images.cuda(device=device_ids[0])
             gts = gts.cuda(device=device_ids[0])
             #edges = edges.cuda(device=device_ids[0])
+
+
 
             preds = model(images)
 
@@ -157,7 +161,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', type=int, default=180, help='epoch number')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--batchsize', type=int, default=8, help='training batch size')
-    parser.add_argument('--trainsize', type=int, default=384, help='training dataset size')
+    parser.add_argument('--trainsize', type=int, default=416, help='training dataset size')
     parser.add_argument('--clip', type=float, default=0.5, help='gradient clipping margin')
     parser.add_argument('--decay_rate', type=float, default=0.1, help='decay rate of learning rate')
     parser.add_argument('--decay_epoch', type=int, default=60, help='every n epochs decay learning rate')
@@ -180,17 +184,22 @@ if __name__ == '__main__':
     model = torch.nn.DataParallel(Network(channels=128), device_ids=device_ids)
     model = model.cuda(device=device_ids[0])
 
-    if opt.load is not None:
-        model.load_state_dict(torch.load(opt.load))
-        print('load model from ', opt.load)
+
+    # # 计算 FLOPs 和参数数量
+    # with torch.cuda.device(0):  # 指定 GPU（如果有）
+    #     flops, params = get_model_complexity_info(model, (3, 32, 32), as_strings=True, print_per_layer_stat=True)
+    #     print(f"FLOPs: {flops}")
+    #     print(f"Params: {params}")
+
+    # if opt.load is not None:
+    #     model.load_state_dict(torch.load(opt.load))
+    #     print('load model from ', opt.load)
 
     optimizer = torch.optim.Adam(model.parameters(), opt.lr)
     save_path = opt.save_path
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-
-    # load data
-    print('load data...')
+    
     train_loader = get_loader(image_root=opt.train_root + 'Imgs/',
                               gt_root=opt.train_root + 'GT/',
                               edge_root=opt.train_root + 'Edge/',

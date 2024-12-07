@@ -2,10 +2,10 @@ import numpy as np
 from test_data import test_dataset
 from saliency_metric import cal_mae,cal_fm,cal_sm,cal_em,cal_wfm
 from sod_metrics import MAE, Emeasure, Fmeasure, Smeasure, WeightedFmeasure
-dataset_path = '' ##gt_path
-dataset_path_pre = ''  ##pre_salmap_path
+dataset_path = '/workspace/codlab/datasets/test/TestDataset/' ##gt_path
+dataset_path_pre = '/workspace/codlab/codre/ADD_FSFMB_3/'  ##pre_salmap_path
 
-test_datasets = ['']  ##test_datasets_name
+test_datasets = ['CAMO']  ##test_datasets_name
 
 for dataset in test_datasets:
     sal_root = dataset_path_pre +dataset+'/'
