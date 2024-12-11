@@ -14,7 +14,6 @@ import requests
 
 
 class Network(nn.Module):
-    # resnet based encoder decoder
     def __init__(self, channels=128):
         super(Network, self).__init__()
         self.shared_encoder = AutoModel.from_pretrained("nvidia/MambaVision-S-1K", trust_remote_code=True)
